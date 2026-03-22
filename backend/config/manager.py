@@ -1,5 +1,6 @@
 """配置管理器模块"""
 import os
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,8 +46,12 @@ class ConfigManager:
                 config = self._get_default_config()
             else:
                 config = self._apply_defaults(config)
-            self._validate_config(config)
+            # 先临时存储配置（用于解析嵌套引用）
             self._config = config
+            # 展开环境变量引用（在验证之前）
+            config = self._expand_env_vars(config)
+            self._config = config
+            self._validate_config(config)
         else:
             # 文件不存在，使用默认配置
             self._config = self._get_default_config()
@@ -95,6 +100,89 @@ class ConfigManager:
             else:
                 result[key] = value
         return result
+
+    def _expand_env_vars(self, config: Any, expanded_keys: Optional[set] = None) -> Any:
+        """递归展开配置中的环境变量引用
+
+        支持两种格式：
+        - ${VAR_NAME}：直接引用环境变量
+        - ${storage.base_path}：引用配置中的嵌套值
+
+        Args:
+            config: 配置值（可以是 dict、list、str 或其他类型）
+            expanded_keys: 已展开的键集合，用于防止循环引用
+
+        Returns:
+            展开后的配置值
+        """
+        if expanded_keys is None:
+            expanded_keys = set()
+
+        if isinstance(config, dict):
+            return {k: self._expand_env_vars(v, expanded_keys) for k, v in config.items()}
+        elif isinstance(config, list):
+            return [self._expand_env_vars(item, expanded_keys) for item in config]
+        elif isinstance(config, str):
+            return self._expand_string_vars(config, expanded_keys)
+        return config
+
+    def _expand_string_vars(self, value: str, expanded_keys: set) -> str:
+        """展开字符串中的环境变量引用
+
+        Args:
+            value: 待展开的字符串
+            expanded_keys: 已展开的键集合
+
+        Returns:
+            展开后的字符串
+        """
+        # 匹配 ${...} 格式的变量引用
+        pattern = r'\$\{([^}]+)\}'
+
+        def replace_var(match: re.Match) -> str:
+            var_name = match.group(1)
+
+            # 检查是否是嵌套配置引用（包含点号）
+            if "." in var_name:
+                return self._resolve_nested_ref(var_name, expanded_keys)
+
+            # 环境变量引用
+            return os.environ.get(var_name, "")
+
+        return re.sub(pattern, replace_var, value)
+
+    def _resolve_nested_ref(self, ref: str, expanded_keys: set) -> str:
+        """解析嵌套配置引用
+
+        将 ${storage.base_path} 解析为 config["storage"]["base_path"] 的值
+
+        Args:
+            ref: 点分格式的引用路径（如 "storage.base_path"）
+            expanded_keys: 已展开的键集合，用于防止循环引用
+
+        Returns:
+            解析后的值（字符串格式）
+        """
+        # 防止循环引用
+        if ref in expanded_keys:
+            return ""
+
+        expanded_keys.add(ref)
+
+        keys = ref.split(".")
+        value: Any = self._config
+
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return ""
+
+        # 如果值本身包含变量引用，递归展开
+        if isinstance(value, str):
+            return self._expand_string_vars(value, expanded_keys)
+
+        return str(value) if value is not None else ""
 
     def _validate_config(self, config: dict) -> None:
         """验证配置有效性"""

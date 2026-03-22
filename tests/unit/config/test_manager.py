@@ -289,3 +289,302 @@ class TestConfigManagerGet:
 
         storage = manager.get("storage")
         assert storage == {"base_path": str(tmp_path)}
+
+
+class TestConfigManagerExpandEnvVars:
+    """ConfigManager._expand_env_vars() 测试类"""
+
+    def test_expand_simple_env_var(self, tmp_path: Path):
+        """测试展开简单的环境变量 ${VAR}"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "${ANTHROPIC_API_KEY}",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-key-12345"}):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert config["llm"]["default"]["api_key"] == "sk-test-key-12345"
+
+    def test_expand_env_var_in_path(self, tmp_path: Path):
+        """测试展开路径中的环境变量"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": "${SMARTCLAW_HOME}/data"},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(os.environ, {"SMARTCLAW_HOME": "/home/user/smartclaw"}):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert config["storage"]["base_path"] == "/home/user/smartclaw/data"
+
+    def test_expand_undefined_env_var_returns_empty(self, tmp_path: Path):
+        """测试未定义的环境变量返回空字符串"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "custom": {"value": "${UNDEFINED_VAR}"},  # 使用非验证字段
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",  # 使用有效值避免验证错误
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        # 确保环境变量不存在
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(os.environ, {}, clear=True):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert config["custom"]["value"] == ""
+
+    def test_expand_nested_config_ref(self, tmp_path: Path):
+        """测试展开嵌套配置引用 ${storage.base_path}"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "memory": {"base_path": "${storage.base_path}"},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        assert config["memory"]["base_path"] == str(tmp_path)
+
+    def test_expand_nested_config_ref_deep(self, tmp_path: Path):
+        """测试展开深层嵌套配置引用"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "rag": {"index_path": "${storage.base_path}/store/memory"},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        assert config["rag"]["index_path"] == f"{tmp_path}/store/memory"
+
+    def test_expand_in_nested_dict(self, tmp_path: Path):
+        """测试在嵌套字典中展开环境变量"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "${ANTHROPIC_API_KEY}",
+                },
+                "rag": {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",  # 添加必需字段
+                    "api_key": "${OPENAI_API_KEY}",
+                },
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "ANTHROPIC_API_KEY": "sk-anthropic-key",
+                    "OPENAI_API_KEY": "sk-openai-key",
+                },
+            ):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert config["llm"]["default"]["api_key"] == "sk-anthropic-key"
+        assert config["llm"]["rag"]["api_key"] == "sk-openai-key"
+
+    def test_expand_in_list(self, tmp_path: Path):
+        """测试在列表中展开环境变量"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "tools": {
+                "allowed_extensions": ["md", "txt", "${SPECIAL_EXT}"],
+            },
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(os.environ, {"SPECIAL_EXT": "py"}):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert "py" in config["tools"]["allowed_extensions"]
+
+    def test_no_expansion_for_plain_string(self, tmp_path: Path):
+        """测试普通字符串不进行展开"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        assert config["llm"]["default"]["model"] == "claude-sonnet-4-20250514"
+
+    def test_expand_mixed_env_and_config_ref(self, tmp_path: Path):
+        """测试混合使用环境变量和配置引用"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        config_content = {
+            "storage": {"base_path": "${SMARTCLAW_HOME}"},
+            "logs": {"path": "${storage.base_path}/logs"},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "${ANTHROPIC_API_KEY}",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "SMARTCLAW_HOME": "/home/user/smartclaw",
+                    "ANTHROPIC_API_KEY": "sk-test-key",
+                },
+            ):
+                manager = ConfigManager()
+                config = manager.get_config()
+
+        assert config["storage"]["base_path"] == "/home/user/smartclaw"
+        assert config["logs"]["path"] == "/home/user/smartclaw/logs"
+        assert config["llm"]["default"]["api_key"] == "sk-test-key"
