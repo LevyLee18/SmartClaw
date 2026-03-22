@@ -1,5 +1,73 @@
 # 模块 A：基础设施与配置
 
+## 0. 依赖管理
+
+### 0.1 依赖清单文件
+
+SmartClaw 使用两个依赖清单文件管理项目依赖：
+
+| 文件 | 用途 | 说明 |
+|-----|------|------|
+| `requirements.txt` | 生产环境依赖 | 运行 SmartClaw 必需的包 |
+| `requirements-dev.txt` | 开发环境依赖 | 包含测试、代码检查工具 |
+
+### 0.2 生产依赖（requirements.txt）
+
+```text
+# 核心框架
+pydantic>=2.0
+pydantic-settings>=2.0
+pyyaml>=6.0
+
+# LLM 框架
+langchain>=1.0.0
+langgraph>=1.0.0
+llama-index>=0.10.0
+
+# Web 框架
+fastapi>=0.109.0
+uvicorn>=0.27.0
+
+# 向量存储与检索
+chromadb>=0.4.0
+
+# 容器管理
+docker>=7.0.0
+
+# 文件监听
+watchdog>=4.0.0
+```
+
+### 0.3 开发依赖（requirements-dev.txt）
+
+```text
+# 测试框架
+pytest>=8.0
+pytest-mock>=3.12
+pytest-asyncio>=0.23
+
+# 代码质量
+mypy>=1.8
+ruff>=0.2.0
+coverage>=7.4
+```
+
+### 0.4 安装命令
+
+```bash
+# 创建虚拟环境
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+
+# 安装生产依赖
+pip install -r requirements.txt
+
+# 安装开发依赖（开发时）
+pip install -r requirements-dev.txt
+```
+
+---
+
 ## 1. 配置模块
 
 ### 1.1 设计原则
@@ -137,16 +205,24 @@ logging:
 
 ### 1.3 配置管理接口
 
+#### 1.3.1 Settings 类定义
+
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 from pathlib import Path
 from typing import Optional, List, Dict
-import yaml
 import os
 
+
 class Settings(BaseSettings):
-    """SmartClaw 配置管理类"""
+    """SmartClaw 配置管理类
+
+    使用 pydantic-settings 实现配置管理，支持：
+    - 从 .env 文件加载环境变量
+    - 类型验证和默认值
+    - 路径自动展开
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -173,6 +249,11 @@ class Settings(BaseSettings):
     rag_chunk_size: int = 1024
     rag_chunk_overlap: int = 100
 
+    # 工具配置
+    tools_root_dir: Path = Field(default=Path("./workspace"))
+    tools_terminal_image: str = "alpine:3.19"
+    tools_python_repl_image: str = "python:3.11-slim"
+
     @field_validator("storage_base_path", "tools_root_dir", mode="before")
     @classmethod
     def expand_path(cls, v):
@@ -180,32 +261,332 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             v = os.path.expandvars(v)
         return Path(v).expanduser()
+```
+
+#### 1.3.2 ConfigManager 完整实现
+
+```python
+import yaml
+from pathlib import Path
+from typing import Any, Optional
 
 
 class ConfigManager:
-    """配置管理器（单例模式）"""
+    """配置管理器（单例模式）
 
-    _instance = None
-    _config = None
+    负责：
+    - 从 config.yaml 加载配置
+    - 展开环境变量引用
+    - 验证配置有效性
+    - 提供点分路径访问
+    """
 
-    def __new__(cls):
+    _instance: Optional["ConfigManager"] = None
+    _config: Optional[dict] = None
+
+    def __new__(cls) -> "ConfigManager":
+        """单例模式：确保全局只有一个配置实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get(self, key: str, default=None):
-        """获取配置项（支持点分路径如 'agent.session.token_threshold'）"""
+    def __init__(self):
+        """初始化时加载配置"""
+        if self._config is None:
+            self._config = self._load_config()
+
+    def _load_config(self) -> dict:
+        """加载配置文件
+
+        加载优先级：
+        1. ~/.smartclaw/config.yaml（如果存在）
+        2. 默认配置（如果配置文件不存在）
+
+        Returns:
+            配置字典
+        """
+        config_path = Path("~/.smartclaw/config.yaml").expanduser()
+
+        if not config_path.exists():
+            return self._get_default_config()
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        # 展开环境变量引用
+        config = self._expand_env_vars(config)
+
+        # 验证配置
+        self._validate_config(config)
+
+        return config
+
+    def _expand_env_vars(self, config: Any) -> Any:
+        """递归展开配置中的环境变量引用
+
+        支持两种格式：
+        - ${VAR_NAME}：直接引用环境变量
+        - ${storage.base_path}：引用配置中的嵌套值
+
+        Args:
+            config: 配置值（可以是 dict、list、str 或其他类型）
+
+        Returns:
+            展开后的配置值
+        """
+        if isinstance(config, dict):
+            return {k: self._expand_env_vars(v) for k, v in config.items()}
+        elif isinstance(config, list):
+            return [self._expand_env_vars(item) for item in config]
+        elif isinstance(config, str):
+            # 展开 ${var} 格式的环境变量
+            if config.startswith("${") and config.endswith("}"):
+                var_name = config[2:-1]
+                # 处理嵌套引用（如 ${storage.base_path}）
+                if "." in var_name:
+                    return self._resolve_nested_ref(var_name)
+                return os.environ.get(var_name, "")
+            return os.path.expandvars(config)
+        return config
+
+    def _resolve_nested_ref(self, ref: str) -> str:
+        """解析嵌套配置引用
+
+        将 ${storage.base_path} 解析为 config["storage"]["base_path"] 的值
+
+        Args:
+            ref: 点分格式的引用路径（如 "storage.base_path"）
+
+        Returns:
+            解析后的值（字符串格式）
+        """
+        keys = ref.split(".")
+        value = self._config
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return ""
+        return str(value)
+
+    def _validate_config(self, config: dict) -> None:
+        """验证配置有效性
+
+        检查：
+        - 必需的配置项是否存在
+        - 数值范围是否合法
+        - 依赖关系是否满足
+
+        Args:
+            config: 配置字典
+
+        Raises:
+            ValueError: 配置验证失败时抛出
+        """
+        errors = []
+
+        # 验证必需的配置项
+        required_keys = ["storage.base_path", "llm.default.provider"]
+        for key in required_keys:
+            if not self._get_nested_value(config, key):
+                errors.append(f"Missing required config: {key}")
+
+        # 验证数值范围
+        if config.get("agent", {}).get("session", {}).get("flush_ratio", 0) > 1:
+            errors.append("flush_ratio must be <= 1")
+
+        if errors:
+            raise ValueError("Config validation failed:\n" + "\n".join(errors))
+
+    def _get_nested_value(self, config: dict, key: str) -> Any:
+        """获取嵌套配置值
+
+        支持点分路径访问，如 "llm.default.model"
+
+        Args:
+            config: 配置字典
+            key: 点分格式的键（如 "llm.default.model"）
+
+        Returns:
+            配置值，如果不存在返回 None
+        """
+        keys = key.split(".")
+        value = config
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return None
+        return value
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """获取配置项
+
+        支持点分路径访问，如 "agent.session.token_threshold"
+
+        Args:
+            key: 点分格式的键
+            default: 默认值（如果配置项不存在）
+
+        Returns:
+            配置值或默认值
+        """
         return self._get_nested_value(self._config, key) or default
 
     def get_config(self) -> dict:
-        """获取完整配置"""
-        return self._config.copy()
+        """获取完整配置
+
+        Returns:
+            配置字典的副本
+        """
+        return self._config.copy() if self._config else {}
+
+    def _get_default_config(self) -> dict:
+        """获取默认配置
+
+        Returns:
+            默认配置字典
+        """
+        return DEFAULT_CONFIG.copy()
 
 
 def get_config() -> dict:
-    """全局配置获取函数"""
+    """全局配置获取函数
+
+    Returns:
+        完整配置字典
+    """
     return ConfigManager().get_config()
 ```
+
+#### 1.3.3 默认配置模板
+
+```python
+DEFAULT_CONFIG = {
+    "version": "1.0",
+    "storage": {
+        "base_path": "~/.smartclaw"
+    },
+    "llm": {
+        "default": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "api_key": "${ANTHROPIC_API_KEY}",
+            "max_tokens": 4096,
+            "temperature": 0.7
+        },
+        "rag": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "api_key": "${OPENAI_API_KEY}",
+            "max_tokens": 1000,
+            "temperature": 0.3
+        }
+    },
+    "embedding": {
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "api_key": "${OPENAI_API_KEY}"
+    },
+    "agent": {
+        "session": {
+            "token_threshold": 3000,
+            "flush_ratio": 0.5
+        },
+        "system_prompt": {
+            "max_tokens": 30000,
+            "near_memory_days": 2
+        }
+    },
+    "memory": {
+        "base_path": "${storage.base_path}",
+        "near_memory": {"days": 2},
+        "core_memory": {"max_tokens": 30000}
+    },
+    "rag": {
+        "index_path": "${storage.base_path}/store/memory",
+        "top_k": 5,
+        "chunk_size": 1024
+    },
+    "tools": {
+        "root_dir": "./workspace",
+        "terminal": {"image": "alpine:3.19"},
+        "python_repl": {"image": "python:3.11-slim"}
+    },
+    "logging": {
+        "level": "INFO"
+    }
+}
+
+
+def init_default_config() -> None:
+    """初始化默认配置文件
+
+    如果配置文件不存在，则创建默认配置文件。
+    """
+    config_path = Path("~/.smartclaw/config.yaml").expanduser()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not config_path.exists():
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(DEFAULT_CONFIG, f, default_flow_style=False, allow_unicode=True)
+        print(f"Created default config at {config_path}")
+```
+
+#### 1.3.4 依赖关系验证
+
+```python
+from typing import List
+import subprocess
+
+
+def validate_config_dependencies(config: dict) -> List[str]:
+    """验证配置项之间的依赖关系
+
+    检查：
+    - RAG 模块需要 LLM 和 Embedding 配置
+    - Docker 工具需要 Docker 环境可用
+
+    Args:
+        config: 配置字典
+
+    Returns:
+        警告消息列表（不阻止启动，仅提示）
+    """
+    warnings = []
+
+    # RAG 模块需要 LLM 和 Embedding 配置
+    if config.get("rag"):
+        if not config.get("llm", {}).get("rag"):
+            warnings.append("RAG module requires llm.rag configuration")
+        if not config.get("embedding"):
+            warnings.append("RAG module requires embedding configuration")
+
+    # Docker 工具需要 Docker 环境
+    docker_tools = ["terminal", "python_repl"]
+    for tool in docker_tools:
+        if config.get("tools", {}).get(tool):
+            try:
+                subprocess.run(
+                    ["docker", "info"],
+                    capture_output=True,
+                    check=True,
+                    timeout=5
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                warnings.append(f"Tool '{tool}' requires Docker to be running")
+                break  # 只提示一次
+
+    return warnings
+```
+
+#### 1.3.5 配置热更新说明
+
+**重要**：SmartClaw **不支持运行时配置热更新**。
+
+- **原因**：配置涉及 LLM 客户端、Docker 容器、向量存储等资源，运行时修改可能导致不一致
+- **修改配置后**：需要重启服务才能生效
+- **动态调整**：部分参数（如 `top_k`）可通过 Agent 工具参数在调用时覆盖
 
 ### 1.4 配置访问示例
 
@@ -297,6 +678,155 @@ class ContainerConfig(BaseModel):
 | `tools.terminal.memory_limit` | Terminal 容器内存 | `256m` |
 | `tools.python_repl.memory_limit` | Python REPL 容器内存 | `512m` |
 | `logging.level` | 日志级别 | `INFO` |
+
+### 1.8 初始化与环境配置
+
+#### 1.8.1 初始化用户数据目录
+
+首次使用 SmartClaw 时，需要初始化用户数据目录。调用 `backend.init.initialize_storage()` 函数：
+
+```python
+# backend/init.py
+from pathlib import Path
+from typing import List
+
+# 默认存储路径
+DEFAULT_BASE_PATH = Path.home() / ".smartclaw"
+
+# 需要创建的子目录列表
+REQUIRED_DIRS: List[str] = [
+    "store/core_memory",
+    "store/memory",
+    "store/rag",
+    "sessions",
+    "sessions/archive",
+    "logs",
+    "skills",
+]
+
+# 核心记忆文件列表
+CORE_MEMORY_FILES: List[str] = [
+    "SOUL.md",
+    "IDENTITY.md",
+    "USER.md",
+    "MEMORY.md",
+    "AGENTS.md",
+    "SKILLS_SNAPSHOT.md",
+]
+
+
+def initialize_storage(base_path: Path | None = None) -> dict:
+    """初始化 SmartClaw 存储目录结构
+
+    Args:
+        base_path: 存储根目录，默认为 ~/.smartclaw
+
+    Returns:
+        初始化结果字典，包含 success, created_dirs, created_files, errors
+    """
+    if base_path is None:
+        base_path = DEFAULT_BASE_PATH
+
+    result = {
+        "success": True,
+        "created_dirs": [],
+        "created_files": [],
+        "errors": [],
+    }
+
+    # 创建基础目录和所有子目录
+    # 创建默认的核心记忆文件
+    # 创建默认的 sessions.json
+    # ... 详细实现见 backend/init.py
+
+    return result
+
+
+def is_initialized(base_path: Path | None = None) -> bool:
+    """检查存储目录是否已初始化
+
+    Args:
+        base_path: 存储根目录，默认为 ~/.smartclaw
+
+    Returns:
+        True 如果已初始化，False 否则
+    """
+    # 检查基础目录和关键子目录是否存在
+    ...
+```
+
+**命令行初始化**：
+
+```bash
+# 方式 1：直接运行模块
+python -m backend.init
+
+# 方式 2：在代码中调用
+from backend.init import initialize_storage, is_initialized
+
+if not is_initialized():
+    result = initialize_storage()
+    print(result)
+```
+
+#### 1.8.2 环境变量模板文件
+
+项目根目录下的 `.env.example` 文件模板：
+
+```bash
+# .env.example
+# SmartClaw 环境变量配置模板
+# 复制此文件到 ~/.smartclaw/.env 并填入真实值
+
+# ============================================
+# API Keys（必需）
+# ============================================
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# ============================================
+# 存储路径（可选覆盖）
+# ============================================
+SMARTCLAW_HOME=~/.smartclaw
+
+# ============================================
+# 日志配置（可选覆盖）
+# ============================================
+SMARTCLAW_LOG_LEVEL=INFO
+
+# ============================================
+# Docker 配置（可选）
+# ============================================
+DOCKER_HOST=unix:///var/run/docker.sock
+```
+
+#### 1.8.3 API Key 配置步骤
+
+**⚠️ 重要**：完成环境配置后，需要填入真实的 API Key：
+
+```bash
+# 1. 复制模板文件
+cp .env.example ~/.smartclaw/.env
+
+# 2. 编辑文件，填入真实密钥
+nano ~/.smartclaw/.env
+
+# 3. 设置文件权限（仅当前用户可读写）
+chmod 600 ~/.smartclaw/.env
+```
+
+**配置示例**：
+
+```bash
+# ~/.smartclaw/.env
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+OPENAI_API_KEY=sk-proj-xxxxx
+```
+
+**注意事项**：
+- 后续涉及 LLM 调用的测试和开发将依赖这些密钥
+- 不要将包含真实密钥的 `.env` 文件提交到版本控制
+- `.gitignore` 已配置忽略 `.env` 文件
 
 ---
 
