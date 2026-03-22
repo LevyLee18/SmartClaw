@@ -1,0 +1,46 @@
+[project]
+name = "smartclaw"
+version = "0.1.0"
+description = "轻量级透明记忆文件管理系统"
+authors = [
+    { name = "Levy Lee", email = "levy@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.11",
+    "pydantic-settings>=2.1.0",
+    "langchain>=0.3.0",
+    "langgraph>=0.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "docker>=7.1.0",
+    "chromadb>=0.5.0",
+    "llama-index>=0.11.0",
+    "watchdog>=4.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-asyncio>=0.23.0",
+    "mypy>=1.10.0",
+    "ruff>=0.5.0",
+    "coverage>=7.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0.0", "wheel>=0.43.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_configs = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
