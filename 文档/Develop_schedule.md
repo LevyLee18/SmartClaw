@@ -1,5 +1,29 @@
 # SmartClaw 开发计划（TDD 版）
 
+## 项目配置
+
+| 配置项 | 值 |
+|-------|-----|
+| Git 仓库 | https://github.com/LevyLee18/SmartClaw |
+| 主分支 | main |
+| 提交规范 | Conventional Commits |
+| 分支策略 | 功能分支（按模块） |
+
+### 分支命名规则
+
+| 模块 | 分支名 |
+|-----|-------|
+| A: 基础设施与配置 | feature/A |
+| B: Memory 模块 | feature/B |
+| C: RAG 模块 | feature/C |
+| D: 内置工具模块 | feature/D |
+| E: Agent 模块 | feature/E |
+| F: FastAPI 接口 | feature/F |
+| G: 系统集成测试 | feature/G |
+| H: 初始化与启动 | feature/H |
+
+---
+
 ## 开发文档更新指南
 
 ### 开发流程
