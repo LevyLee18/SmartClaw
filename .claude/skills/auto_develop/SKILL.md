@@ -486,6 +486,8 @@ class LLMConfig(BaseModel):
 
 ## 参考文档
 
+**所有参考文档均位于**：`.claude/skills/auto_develop/references/`
+
 ### 必读文档
 | 文件 | 说明 | 读取时机 |
 |-----|------|---------|
