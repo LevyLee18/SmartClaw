@@ -71,7 +71,7 @@
 
 | 模块 | 总任务数 | 已完成 | 未完成 | 进行中 | 阻塞 | 完成率 |
 |-----|---------|-------|-------|-------|-----|-------|
-| A: 基础设施与配置 | 19 | 6 | 13 | 0 | 0 | 32% |
+| A: 基础设施与配置 | 19 | 7 | 12 | 0 | 0 | 37% |
 | B: Memory 模块 | 23 | 0 | 23 | 0 | 0 | 0% |
 | C: RAG 模块 | 25 | 0 | 25 | 0 | 0 | 0% |
 | D: 内置工具模块 | 21 | 0 | 21 | 0 | 0 | 0% |
@@ -79,7 +79,7 @@
 | F: FastAPI 接口 | 24 | 0 | 24 | 0 | 0 | 0% |
 | G: 系统集成测试 | 7 | 0 | 7 | 0 | 0 | 0% |
 | H: 初始化与启动 | 5 | 0 | 5 | 0 | 0 | 0% |
-| **总计** | **144** | **6** | **138** | **0** | **0** | **4%** |
+| **总计** | **144** | **7** | **137** | **0** | **0** | **5%** |
 
 ---
 
@@ -143,7 +143,7 @@
 
 | 编号 | 开发内容 | 开发功能描述 | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
 |-----|---------|-------------|---------|---------|-------------|------|
-| A7 | 创建依赖清单文件 | **创建 requirements.txt**：pydantic, langchain, langgraph, fastapi, uvicorn, docker, chromadb, llama-index, watchdog, pyyaml<br>**创建 requirements-dev.txt**：pytest, pytest-mock, pytest-asyncio, mypy, ruff, coverage | 两个文件存在，pip install 成功 | [ ] | - | 基础设施，无需TDD |
+| A7 | 创建依赖清单文件 | **更新 pyproject.toml**：添加 langchain-anthropic, langchain-openai, llama-index-core, llama-index-embeddings-openai, llama-index-vector-stores-chroma 等依赖<br>**dev 依赖**：pytest, pytest-mock, pytest-asyncio, mypy, ruff, coverage | pyproject.toml 包含完整依赖，pip install -e ".[dev]" 成功 | [x] | 2026-03-22 | 使用 pyproject.toml 替代 requirements.txt |
 | A8 | 初始化用户数据目录 | **实现**: 调用 backend.init.initialize_storage() 创建完整目录结构<br>**验收**: ~/.smartclaw/ 目录包含所有子目录 | 目录结构完整，核心记忆文件存在 | [ ] | - | 需手动执行或应用启动时调用 |
 | A9 | 创建环境变量模板文件 | **创建 .env.example**：包含 ANTHROPIC_API_KEY, OPENAI_API_KEY 占位符 | .env.example 存在于项目根目录 | [ ] | - | 基础设施，无需TDD |
 
