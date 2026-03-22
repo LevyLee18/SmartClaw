@@ -2,69 +2,97 @@
 
 ## 0. 依赖管理
 
-### 0.1 依赖清单文件
+### 0.1 使用 uv 进行依赖管理
 
-SmartClaw 使用两个依赖清单文件管理项目依赖：
+SmartClaw 使用 uv 作为包管理器，所有依赖定义在 pyproject.toml 中。
 
 | 文件 | 用途 | 说明 |
 |-----|------|------|
-| `requirements.txt` | 生产环境依赖 | 运行 SmartClaw 必需的包 |
-| `requirements-dev.txt` | 开发环境依赖 | 包含测试、代码检查工具 |
+| `pyproject.toml` | 项目配置和依赖 | 包含所有生产依赖和开发依赖 |
+| `uv.lock` | 依赖锁定文件 | 确保依赖版本一致性（需加入版本控制） |
 
-### 0.2 生产依赖（requirements.txt）
-
-```text
-# 核心框架
-pydantic>=2.0
-pydantic-settings>=2.0
-pyyaml>=6.0
-
-# LLM 框架
-langchain>=1.0.0
-langgraph>=1.0.0
-llama-index>=0.10.0
-
-# Web 框架
-fastapi>=0.109.0
-uvicorn>=0.27.0
-
-# 向量存储与检索
-chromadb>=0.4.0
-
-# 容器管理
-docker>=7.0.0
-
-# 文件监听
-watchdog>=4.0.0
-```
-
-### 0.3 开发依赖（requirements-dev.txt）
-
-```text
-# 测试框架
-pytest>=8.0
-pytest-mock>=3.12
-pytest-asyncio>=0.23
-
-# 代码质量
-mypy>=1.8
-ruff>=0.2.0
-coverage>=7.4
-```
-
-### 0.4 安装命令
+### 0.2 创建虚拟环境
 
 ```bash
-# 创建虚拟环境
-python -m venv .venv
+# 创建虚拟环境（使用 uv）
+uv venv
+
+# 激活虚拟环境
 source .venv/bin/activate  # Linux/macOS
-
-# 安装生产依赖
-pip install -r requirements.txt
-
-# 安装开发依赖（开发时）
-pip install -r requirements-dev.txt
+.venv\Scripts\activate     # Windows
 ```
+
+### 0.3 安装依赖
+
+```bash
+# 安装所有依赖（包括开发依赖）
+uv pip install -e ".[dev]"
+
+# 仅安装生产依赖
+uv pip install -e .
+```
+
+### 0.4 依赖管理命令
+
+```bash
+# 添加新依赖
+uv add <package-name>
+
+# 添加开发依赖
+uv add --dev <package-name>
+
+# 更新依赖锁文件
+uv lock --upgrade
+
+# 同步依赖（根据 uv.lock）
+uv sync
+```
+
+### 0.5 运行测试
+
+```bash
+# 确保已激活虚拟环境
+source .venv/bin/activate
+
+# 运行测试
+pytest
+
+# 或使用 uv run（自动激活环境）
+uv run pytest
+```
+
+### 0.6 核心依赖清单
+
+**生产依赖**（定义在 `pyproject.toml` 的 `[project.dependencies]`）：
+
+| 依赖 | 版本 | 用途 |
+|-----|------|------|
+| pydantic | ≥2.0 | 数据验证和配置管理 |
+| pydantic-settings | ≥2.0 | 环境变量和配置加载 |
+| pyyaml | ≥6.0 | YAML 配置解析 |
+| langchain | ≥1.0.0 | LLM 应用框架 |
+| langgraph | ≥1.0.0 | 状态图工作流 |
+| langchain-anthropic | latest | Anthropic LLM 集成 |
+| langchain-openai | latest | OpenAI LLM 集成 |
+| llama-index-core | latest | RAG 核心组件 |
+| llama-index-embeddings-openai | latest | OpenAI Embedding |
+| llama-index-vector-stores-chroma | latest | Chroma 向量存储 |
+| fastapi | ≥0.109.0 | Web 框架 |
+| uvicorn | ≥0.27.0 | ASGI 服务器 |
+| chromadb | ≥0.4.0 | 向量数据库 |
+| docker | ≥7.0.0 | Docker SDK |
+| watchdog | ≥4.0.0 | 文件监听 |
+
+**开发依赖**（定义在 `pyproject.toml` 的 `[project.optional-dependencies.dev]`）：
+
+| 依赖 | 版本 | 用途 |
+|-----|------|------|
+| pytest | ≥8.0 | 测试框架 |
+| pytest-mock | ≥3.12 | Mock 工具 |
+| pytest-asyncio | ≥0.23 | 异步测试 |
+| mypy | ≥1.8 | 类型检查 |
+| ruff | ≥0.2.0 | 代码检查和格式化 |
+| coverage | ≥7.4 | 测试覆盖率 |
 
 ---
 

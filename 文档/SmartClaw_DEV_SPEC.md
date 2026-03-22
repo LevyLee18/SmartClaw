@@ -5736,10 +5736,9 @@ smartclaw/                      # 项目根目录（源代码）
 │   └── 内置工具.md               # 内置工具规范
 │
 ├── pytest.ini                   # pytest 配置
-├── pyproject.toml               # 项目配置（含 pytest 插件）
+├── pyproject.toml               # 项目配置（含依赖管理）
+├── uv.lock                      # uv 依赖锁定文件
 ├── config.example.yaml          # 配置文件模板
-├── requirements.txt             # 依赖清单
-├── requirements-dev.txt         # 开发依赖
 ├── .env.example                 # 环境变量模板
 ├── .gitignore                   # Git 忽略配置
 ├── README.md                    # 项目说明
@@ -6078,9 +6077,9 @@ class TestLongRunning:
 | 依赖 | 版本要求 | 说明 |
 |-----|---------|------|
 | Python | ≥ 3.11 | 使用最新稳定版 |
+| uv | ≥ 0.4.0 | 快速 Python 包管理器 |
 | Docker | ≥ 24.0 | 容器隔离必需 |
 | Git | ≥ 2.30 | 版本控制 |
-| pip | ≥ 23.0 | 包管理器 |
 
 #### 10.2.2 搭建步骤
 
@@ -6089,14 +6088,13 @@ class TestLongRunning:
 git clone https://github.com/xxx/smartclaw.git
 cd smartclaw
 
-# 2. 创建虚拟环境
-python -m venv .venv
+# 2. 创建虚拟环境并安装依赖（使用 uv）
+uv venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
 # 3. 安装依赖
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # 开发依赖
+uv pip install -e ".[dev]"
 
 # 4. 初始化用户数据目录
 python -m backend.init
