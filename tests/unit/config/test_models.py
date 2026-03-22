@@ -1,4 +1,4 @@
-"""测试 LLMConfig 模型"""
+"""测试配置数据模型"""
 import pytest
 from pydantic import ValidationError
 
@@ -63,7 +63,6 @@ class TestLLMConfig:
         """测试 max_tokens 最小边界"""
         from backend.config.models import LLMConfig
 
-        # 刚好在范围内
         config = LLMConfig(
             provider="anthropic",
             model="claude-sonnet-4-20250514",
@@ -91,7 +90,6 @@ class TestLLMConfig:
         """测试 max_tokens 最大边界"""
         from backend.config.models import LLMConfig
 
-        # 刚好在范围内
         config = LLMConfig(
             provider="anthropic",
             model="claude-sonnet-4-20250514",
@@ -272,3 +270,182 @@ class TestLLMConfig:
             temperature=0.7
         )
         assert config.provider == "vllm"
+
+
+class TestContainerConfig:
+    """ContainerConfig 测试类"""
+
+    def test_valid_config(self):
+        """测试有效配置"""
+        from backend.config.models import ContainerConfig
+
+        config = ContainerConfig(
+            image="alpine:3.19",
+            memory_limit="256m",
+            cpu_limit="0.25",
+            auto_restart=True
+        )
+        assert config.image == "alpine:3.19"
+        assert config.memory_limit == "256m"
+        assert config.cpu_limit == "0.25"
+        assert config.auto_restart is True
+
+    def test_valid_config_with_different_memory_formats(self):
+        """测试不同内存格式"""
+        from backend.config.models import ContainerConfig
+
+        # 使用 m (兆字节)
+        config = ContainerConfig(
+            image="python:3.11-slim",
+            memory_limit="512m",
+            cpu_limit="0.5"
+        )
+        assert config.memory_limit == "512m"
+
+        # 使用 g (吉字节)
+        config = ContainerConfig(
+            image="node:20",
+            memory_limit="2g",
+            cpu_limit="1.0"
+        )
+        assert config.memory_limit == "2g"
+
+        # 纯数字 (字节)
+        config = ContainerConfig(
+            image="ubuntu:22.04",
+            memory_limit="1073741824",
+            cpu_limit="0.25"
+        )
+        assert config.memory_limit == "1073741824"
+
+    def test_default_values(self):
+        """测试默认值"""
+        from backend.config.models import ContainerConfig
+
+        config = ContainerConfig(
+            image="alpine:3.19"
+        )
+        assert config.memory_limit == "256m"
+        assert config.cpu_limit == "0.25"
+        assert config.auto_restart is True
+
+    def test_missing_required_field_image(self):
+        """测试缺少 image 字段（异常场景）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                memory_limit="256m",
+                cpu_limit="0.25"
+            )
+        assert "image" in str(exc_info.value)
+
+    def test_invalid_memory_format_with_space(self):
+        """测试无效内存格式（带空格）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                image="alpine:3.19",
+                memory_limit="256 m",
+                cpu_limit="0.25"
+            )
+        assert "memory_limit" in str(exc_info.value)
+
+    def test_invalid_memory_format_with_gb(self):
+        """测试无效内存格式（使用 gb 而非 g）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                image="alpine:3.19",
+                memory_limit="1gb",
+                cpu_limit="0.25"
+            )
+        assert "memory_limit" in str(exc_info.value)
+
+    def test_invalid_memory_format_negative(self):
+        """测试无效内存格式（负数）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                image="alpine:3.19",
+                memory_limit="-256m",
+                cpu_limit="0.25"
+            )
+        assert "memory_limit" in str(exc_info.value)
+
+    def test_invalid_memory_format_with_decimal(self):
+        """测试无效内存格式（小数）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                image="alpine:3.19",
+                memory_limit="1.5g",
+                cpu_limit="0.25"
+            )
+        assert "memory_limit" in str(exc_info.value)
+
+    def test_auto_restart_false(self):
+        """测试 auto_restart 为 False"""
+        from backend.config.models import ContainerConfig
+
+        config = ContainerConfig(
+            image="alpine:3.19",
+            memory_limit="256m",
+            cpu_limit="0.25",
+            auto_restart=False
+        )
+        assert config.auto_restart is False
+
+    def test_various_cpu_limits(self):
+        """测试各种 CPU 限制值"""
+        from backend.config.models import ContainerConfig
+
+        # 小数
+        config = ContainerConfig(image="alpine:3.19", cpu_limit="0.5")
+        assert config.cpu_limit == "0.5"
+
+        # 整数
+        config = ContainerConfig(image="alpine:3.19", cpu_limit="1")
+        assert config.cpu_limit == "1"
+
+        # 多核
+        config = ContainerConfig(image="alpine:3.19", cpu_limit="2.5")
+        assert config.cpu_limit == "2.5"
+
+    def test_empty_image(self):
+        """测试空镜像名（异常场景）"""
+        from backend.config.models import ContainerConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            ContainerConfig(
+                image="",
+                memory_limit="256m",
+                cpu_limit="0.25"
+            )
+        assert "image" in str(exc_info.value)
+
+    def test_image_without_tag(self):
+        """测试无 tag 的镜像名"""
+        from backend.config.models import ContainerConfig
+
+        config = ContainerConfig(
+            image="alpine",
+            memory_limit="256m",
+            cpu_limit="0.25"
+        )
+        assert config.image == "alpine"
+
+    def test_image_with_digest(self):
+        """测试带 digest 的镜像名"""
+        from backend.config.models import ContainerConfig
+
+        config = ContainerConfig(
+            image="alpine@sha256:abc123",
+            memory_limit="256m",
+            cpu_limit="0.25"
+        )
+        assert config.image == "alpine@sha256:abc123"
