@@ -83,7 +83,7 @@ description: |
    → git checkout -b feature/{模块名}
 
 2. 完成任务后提交
-   → git add Develop_schedule.md backend/ tests/
+   → git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
    → git commit -m "feat({模块}): 完成任务 {任务编号} - {任务名称}"
    → git push -u origin feature/{模块名}  (首次推送)
    → git push  (后续推送)
@@ -231,7 +231,7 @@ description: |
    git checkout feature/{当前模块}
 
    # 暂存文件
-   git add Develop_schedule.md backend/ tests/
+   git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
 
    # 本地提交
    git commit -m "feat({模块}): 完成任务 {任务编号} - {任务名称}"
@@ -474,7 +474,7 @@ class LLMConfig(BaseModel):
 
 → 请确认后续动作：
   1. 是否执行 Git 提交？
-     git add Develop_schedule.md backend/ tests/
+     git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
      git commit -m "feat: 完成任务 A3 - 测试并实现 LLMConfig"
   2. 是否继续下一个任务：A4（测试并实现 ContainerConfig）？
   3. 是否有其他需要调整的内容？
