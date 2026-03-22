@@ -94,6 +94,121 @@ uv run pytest
 | ruff | ≥0.2.0 | 代码检查和格式化 |
 | coverage | ≥7.4 | 测试覆盖率 |
 
+### 0.7 项目目录结构
+
+#### 源代码目录结构
+
+```
+smartclaw/                      # 项目根目录
+├── backend/                    # 后端源代码
+│   ├── __init__.py
+│   ├── config/                 # 配置模块
+│   │   ├── __init__.py
+│   │   ├── models.py           # 配置数据模型（LLMConfig, ContainerConfig, Settings）
+│   │   └── manager.py          # ConfigManager 实现
+│   ├── memory/                 # Memory 模块
+│   │   ├── __init__.py
+│   │   ├── base.py             # MemoryManager 抽象基类
+│   │   ├── near.py             # NearMemoryManager
+│   │   ├── core.py             # CoreMemoryManager
+│   │   └── session.py          # SessionManager
+│   ├── rag/                    # RAG 模块
+│   │   ├── __init__.py
+│   │   ├── base.py             # IndexManager 抽象基类
+│   │   ├── cache.py            # SQLiteCache
+│   │   ├── manager.py          # MemoryIndexManager
+│   │   └── watcher.py          # FileWatcher
+│   ├── tools/                  # 内置工具模块
+│   │   ├── __init__.py
+│   │   ├── security.py         # SecurityChecker
+│   │   ├── container.py        # ContainerManager
+│   │   └── registry.py         # ToolRegistry
+│   ├── agent/                  # Agent 模块
+│   │   ├── __init__.py
+│   │   ├── prompt.py           # SystemPromptBuilder
+│   │   ├── graph.py            # AgentGraph
+│   │   └── agent.py            # SmartClawAgent
+│   ├── api/                    # FastAPI 接口
+│   │   ├── __init__.py
+│   │   ├── main.py             # FastAPI 应用入口
+│   │   ├── routers/            # API 路由
+│   │   │   ├── __init__.py
+│   │   │   ├── sessions.py
+│   │   │   ├── messages.py
+│   │   │   ├── memory.py
+│   │   │   ├── search.py
+│   │   │   └── health.py
+│   │   ├── models/             # 请求/响应模型
+│   │   │   ├── __init__.py
+│   │   │   ├── requests.py
+│   │   │   └── responses.py
+│   │   └── exceptions.py       # API 异常处理
+│   ├── errors/                 # 错误类型定义
+│   │   ├── __init__.py
+│   │   └── base.py             # SmartClawError 及子类
+│   ├── logging/                # 日志模块
+│   │   ├── __init__.py
+│   │   └── formatter.py        # 日志格式化
+│   └── init.py                 # 初始化脚本
+│
+├── tests/                      # 测试目录
+│   ├── __init__.py
+│   ├── conftest.py             # pytest fixtures
+│   ├── unit/                   # 单元测试
+│   │   ├── config/
+│   │   ├── memory/
+│   │   ├── rag/
+│   │   ├── tools/
+│   │   ├── agent/
+│   │   └── api/
+│   ├── api/                    # API 端点测试
+│   ├── integration/            # 集成测试
+│   ├── e2e/                    # 端到端测试
+│   └── boundary/               # 边界条件测试
+│
+├── pyproject.toml              # 项目配置
+├── uv.lock                     # 依赖锁定
+├── .env.example                # 环境变量模板
+└── README.md
+```
+
+#### 用户数据目录结构
+
+```
+~/.smartclaw/                   # 用户数据目录
+├── config.yaml                 # 用户配置文件
+├── .env                        # 环境变量（API Key）
+│
+├── store/                      # 数据存储
+│   ├── core_memory/            # 核心记忆文件
+│   │   ├── SOUL.md             # 灵魂设定
+│   │   ├── IDENTITY.md         # 身份定义
+│   │   ├── USER.md             # 用户画像
+│   │   ├── MEMORY.md           # 重要记忆
+│   │   ├── AGENTS.md           # Agent 配置（只读）
+│   │   └── SKILLS_SNAPSHOT.md  # 技能快照（只读）
+│   │
+│   ├── memory/                 # 近端记忆（按日期）
+│   │   └── 2026-03-23.md
+│   │
+│   └── rag/                    # RAG 索引
+│       └── memory/             # 记忆知识库
+│           ├── chroma/         # Chroma 向量索引
+│           └── docstore/       # 文档存储
+│
+├── sessions/                   # 会话目录
+│   ├── sessions.json           # 会话映射表
+│   ├── current/                # 当前会话文件
+│   └── archive/                # 归档会话
+│
+├── logs/                       # 日志文件
+│   ├── smartclaw.log           # 主日志
+│   ├── smartclaw.log.1         # 轮转备份
+│   └── container_crashes.log   # 容器崩溃日志
+│
+└── skills/                     # 技能目录
+```
+
 ---
 
 ## 1. 配置模块
