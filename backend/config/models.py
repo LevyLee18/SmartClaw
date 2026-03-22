@@ -1,4 +1,5 @@
 """配置数据模型"""
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -27,4 +28,32 @@ class LLMConfig(BaseModel):
             raise ValueError("API key must be configured")
         if v == "your_api_key_here":
             raise ValueError("API key must be configured")
+        return v
+
+
+class ContainerConfig(BaseModel):
+    """容器配置模型"""
+
+    image: str = Field(..., description="Docker 镜像名称")
+    memory_limit: str = Field(default="256m", description="内存限制")
+    cpu_limit: str = Field(default="0.25", description="CPU 限制")
+    auto_restart: bool = Field(default=True, description="是否自动重启")
+
+    @field_validator("image")
+    @classmethod
+    def validate_image(cls, v: str) -> str:
+        """验证镜像名称不能为空"""
+        if not v or v.strip() == "":
+            raise ValueError("Image name must be configured")
+        return v
+
+    @field_validator("memory_limit")
+    @classmethod
+    def validate_memory_limit(cls, v: str) -> str:
+        """验证内存限制格式（支持纯数字、数字+m、数字+g）"""
+        if not re.match(r"^\d+[mg]?$", v):
+            raise ValueError(
+                f"Invalid memory format: {v}. "
+                "Expected format: number, number+m, or number+g"
+            )
         return v
