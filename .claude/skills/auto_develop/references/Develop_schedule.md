@@ -139,6 +139,21 @@
 | A1 | 创建项目目录结构 | 创建 backend/ 及其子目录（agent/, memory/, rag/, tools/, config/, api/）和 tests/ 目录 | 目录结构符合规范，所有 __init__.py 存在 | [x] | 2026-03-22 | 按计划完成 |
 | A2 | 创建用户数据目录结构 | 创建 ~/.smartclaw/ 及子目录（store/core_memory/, store/memory/, store/rag/, sessions/, logs/, skills/） | 首次运行自动创建完整目录结构 | [x] | 2026-03-22 | 按计划完成 |
 
+### A.1.1 初始化与环境配置（无测试）
+
+| 编号 | 开发内容 | 开发功能描述 | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
+|-----|---------|-------------|---------|---------|-------------|------|
+| A7 | 创建依赖清单文件 | **创建 requirements.txt**：pydantic, langchain, langgraph, fastapi, uvicorn, docker, chromadb, llama-index, watchdog, pyyaml<br>**创建 requirements-dev.txt**：pytest, pytest-mock, pytest-asyncio, mypy, ruff, coverage | 两个文件存在，pip install 成功 | [ ] | - | 基础设施，无需TDD |
+| A8 | 初始化用户数据目录 | **实现**: 调用 backend.init.initialize_storage() 创建完整目录结构<br>**验收**: ~/.smartclaw/ 目录包含所有子目录 | 目录结构完整，核心记忆文件存在 | [ ] | - | 需手动执行或应用启动时调用 |
+| A9 | 创建环境变量模板文件 | **创建 .env.example**：包含 ANTHROPIC_API_KEY, OPENAI_API_KEY 占位符 | .env.example 存在于项目根目录 | [ ] | - | 基础设施，无需TDD |
+
+**⚠️ 重要**：完成 A9 后，用户需要在 `~/.smartclaw/.env` 文件中填入真实的 API Key：
+```bash
+ANTHROPIC_API_KEY=your_real_key_here
+OPENAI_API_KEY=your_real_key_here
+```
+后续涉及 LLM 调用的测试和开发将依赖这些密钥。
+
 ### A.2 配置模块（TDD）
 
 | 编号 | 开发内容 | 开发功能描述（含测试要点） | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
@@ -147,41 +162,26 @@
 | A4 | 测试并实现 ContainerConfig | **测试**: 验证字段类型、默认值<br>**实现**: Pydantic 模型，包含 image, memory_limit, cpu_limit, auto_restart | 1.测试覆盖字段验证 2.测试通过 | [x] | 2026-03-22 | 按计划完成，13个测试用例全部通过 |
 | A5 | 测试并实现 Settings 类 | **测试**: 验证配置块加载、嵌套访问<br>**实现**: 主配置类，包含 storage, llm, embedding, agent, memory, rag, tools 配置块 | 1.测试覆盖所有配置块 2.测试通过 | [x] | 2026-03-22 | 按计划完成，11个Settings测试+32个其他测试通过 |
 | A6 | 测试并实现 ConfigManager.load() | **测试**: 验证文件加载、默认配置回退、缺失文件处理<br>**实现**: 从 ~/.smartclaw/config.yaml 加载配置 | 1.测试覆盖正常/异常场景 2.测试通过 | [x] | 2026-03-22 | 按计划完成，9个测试用例全部通过 |
-| A7 | 测试并实现 _expand_env_vars() | **测试**: 验证 ${VAR} 展开、嵌套变量、未定义变量处理<br>**实现**: 递归展开环境变量引用 | 1.测试覆盖各种变量场景 2.测试通过 | [ ] | - | |
-| A8 | 测试并实现 _validate_config() | **测试**: 验证必需字段检查、依赖关系验证、无效配置抛 ConfigError<br>**实现**: 配置有效性验证 | 1.测试覆盖验证规则 2.测试通过 | [ ] | - | |
-| A9 | 测试并实现 ConfigManager.get() | **测试**: 验证点分路径访问、嵌套路径、不存在路径返回 None<br>**实现**: 支持 "llm.default.model" 格式访问 | 1.测试覆盖路径访问 2.测试通过 | [ ] | - | |
+| A10 | 测试并实现 _expand_env_vars() | **测试**: 验证 ${VAR} 展开、嵌套变量、未定义变量处理<br>**实现**: 递归展开环境变量引用 | 1.测试覆盖各种变量场景 2.测试通过 | [ ] | - | |
+| A11 | 测试并实现 _validate_config() | **测试**: 验证必需字段检查、依赖关系验证、无效配置抛 ConfigError<br>**实现**: 配置有效性验证 | 1.测试覆盖验证规则 2.测试通过 | [ ] | - | |
+| A12 | 测试并实现 ConfigManager.get() | **测试**: 验证点分路径访问、嵌套路径、不存在路径返回 None<br>**实现**: 支持 "llm.default.model" 格式访问 | 1.测试覆盖路径访问 2.测试通过 | [ ] | - | |
 | T1 | 配置模块边界测试 | **测试**: 空配置、超大配置、循环引用、特殊字符 | 边界情况正确处理 | [ ] | - | 纯测试项 |
-
-### A.2.1 初始化与环境配置（无测试）
-
-| 编号 | 开发内容 | 开发功能描述 | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
-|-----|---------|-------------|---------|---------|-------------|------|
-| A2.1 | 创建依赖清单文件 | **创建 requirements.txt**：pydantic, langchain, langgraph, fastapi, uvicorn, docker, chromadb, llama-index, watchdog, pyyaml<br>**创建 requirements-dev.txt**：pytest, pytest-mock, pytest-asyncio, mypy, ruff, coverage | 两个文件存在，pip install 成功 | [ ] | - | 基础设施，无需TDD |
-| A2.2 | 初始化用户数据目录 | **实现**: 调用 backend.init.initialize_storage() 创建完整目录结构<br>**验收**: ~/.smartclaw/ 目录包含所有子目录 | 目录结构完整，核心记忆文件存在 | [ ] | - | 需手动执行或应用启动时调用 |
-| A2.3 | 创建环境变量模板文件 | **创建 .env.example**：包含 ANTHROPIC_API_KEY, OPENAI_API_KEY 占位符 | .env.example 存在于项目根目录 | [ ] | - | 基础设施，无需TDD |
-
-**⚠️ 重要**：完成 A2.3 后，用户需要在 `~/.smartclaw/.env` 文件中填入真实的 API Key：
-```bash
-ANTHROPIC_API_KEY=your_real_key_here
-OPENAI_API_KEY=your_real_key_here
-```
-后续涉及 LLM 调用的测试和开发将依赖这些密钥。
 
 ### A.3 日志模块（TDD）
 
 | 编号 | 开发内容 | 开发功能描述（含测试要点） | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
 |-----|---------|--------------------------|---------|---------|-------------|------|
-| A10 | 测试并实现日志格式 | **测试**: 验证日志格式包含时间戳、模块名、级别、消息<br>**实现**: 统一日志格式定义 | 1.测试覆盖格式验证 2.测试通过 | [ ] | - | |
-| A11 | 测试并实现模块命名空间 | **测试**: 验证各模块命名空间独立、可过滤<br>**实现**: smartclaw.agent, smartclaw.memory 等命名空间 | 1.测试覆盖命名空间 2.测试通过 | [ ] | - | |
-| A12 | 测试并实现日志轮转 | **测试**: 验证10MB触发轮转、保留5个备份<br>**实现**: 基于大小的轮转策略 | 1.测试覆盖轮转逻辑 2.测试通过 | [ ] | - | |
-| A13 | 测试并实现敏感信息脱敏 | **测试**: 验证 API Key、路径脱敏为 ***<br>**实现**: 敏感信息自动脱敏 | 1.测试覆盖脱敏规则 2.测试通过 | [ ] | - | |
+| A13 | 测试并实现日志格式 | **测试**: 验证日志格式包含时间戳、模块名、级别、消息<br>**实现**: 统一日志格式定义 | 1.测试覆盖格式验证 2.测试通过 | [ ] | - | |
+| A14 | 测试并实现模块命名空间 | **测试**: 验证各模块命名空间独立、可过滤<br>**实现**: smartclaw.agent, smartclaw.memory 等命名空间 | 1.测试覆盖命名空间 2.测试通过 | [ ] | - | |
+| A15 | 测试并实现日志轮转 | **测试**: 验证10MB触发轮转、保留5个备份<br>**实现**: 基于大小的轮转策略 | 1.测试覆盖轮转逻辑 2.测试通过 | [ ] | - | |
+| A16 | 测试并实现敏感信息脱敏 | **测试**: 验证 API Key、路径脱敏为 ***<br>**实现**: 敏感信息自动脱敏 | 1.测试覆盖脱敏规则 2.测试通过 | [ ] | - | |
 
 ### A.4 错误类型定义（TDD）
 
 | 编号 | 开发内容 | 开发功能描述（含测试要点） | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
 |-----|---------|--------------------------|---------|---------|-------------|------|
-| A14 | 测试并实现 SmartClawError 基类 | **测试**: 验证 error_code, message, detail, suggestion 属性<br>**实现**: 错误基类 | 1.测试覆盖所有属性 2.测试通过 | [ ] | - | |
-| A15 | 测试并实现错误子类 | **测试**: 验证各错误类错误码格式（CFG_XXX, SES_XXX, MEM_XXX 等）<br>**实现**: ConfigError, SessionError, MemoryError, RAGError, ToolError, ContainerError, SecurityError | 1.测试覆盖所有错误类型 2.测试通过 | [ ] | - | |
+| A17 | 测试并实现 SmartClawError 基类 | **测试**: 验证 error_code, message, detail, suggestion 属性<br>**实现**: 错误基类 | 1.测试覆盖所有属性 2.测试通过 | [ ] | - | |
+| A18 | 测试并实现错误子类 | **测试**: 验证各错误类错误码格式（CFG_XXX, SES_XXX, MEM_XXX 等）<br>**实现**: ConfigError, SessionError, MemoryError, RAGError, ToolError, ContainerError, SecurityError | 1.测试覆盖所有错误类型 2.测试通过 | [ ] | - | |
 
 ---
 
