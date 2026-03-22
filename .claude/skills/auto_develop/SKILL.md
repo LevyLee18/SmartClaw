@@ -45,8 +45,8 @@ description: |
 
 | 文档 | 位置 | 作用 |
 |-----|------|------|
-| One_page.md | references/One_page.md | 项目最终目标、核心定位，确保开发方向正确 |
-| Develop_schedule.md | references/Develop_schedule.md | 开发进度、任务列表、更新规则 |
+| One_page.md | .claude/skills/auto_develop/references/One_page.md | 项目最终目标、核心定位，确保开发方向正确 |
+| Develop_schedule.md | .claude/skills/auto_develop/references/Develop_schedule.md | 开发进度、任务列表、更新规则 |
 
 **重要**：阅读 One_page.md 是为了记住项目的最终目标和核心定位，保证开发方向正确。
 
@@ -101,12 +101,12 @@ description: |
 ### Phase 0：初始化（每次必做）
 
 ```
-步骤 0.1：读取 references/One_page.md
+步骤 0.1：读取 .claude/skills/auto_develop/references/One_page.md
 → 理解项目定位：轻量级透明记忆文件管理系统
 → 记住核心设计哲学：File-first Memory, Skills as Plugins, 透明可控
 → 明确最终目标，确保开发方向正确
 
-步骤 0.2：读取 references/Develop_schedule.md
+步骤 0.2：读取 .claude/skills/auto_develop/references/Develop_schedule.md
 → 查看「模块进度汇总」，确认当前进度
 → 找到当前模块（未完成率最高的模块）
 ```
@@ -154,7 +154,7 @@ description: |
 → 获取「关联DEV_SPEC」定位
 
 步骤 2.2：读取模块参考文档
-→ 读取 references/module_X.md
+→ 读取 .claude/skills/auto_develop/references/module_X.md
 → 获取接口定义、数据模型、实现规范
 
 步骤 2.3：读取关联模块概览
@@ -269,14 +269,14 @@ git push origin main
 
 【技能执行 - Phase 0：初始化】
 
-→ 读取 references/One_page.md...
+→ 读取 .claude/skills/auto_develop/references/One_page.md...
   ✓ 项目定位：轻量级透明记忆文件管理系统
   ✓ 核心哲学：File-first Memory（文件即记忆）
   ✓ 核心哲学：Skills as Plugins（技能即插件）
   ✓ 核心哲学：透明可控（拒绝黑盒 Agent）
   ✓ 最终目标：让 AI Agent 的记忆像普通文件一样透明可控
 
-→ 读取 references/Develop_schedule.md...
+→ 读取 .claude/skills/auto_develop/references/Develop_schedule.md...
   ✓ 当前进度：0%（0/135 已完成）
   ✓ 当前模块：模块 A（基础设施与配置）
   ✓ 模块 A 进度：0/15 完成
@@ -310,7 +310,7 @@ git push origin main
   - 关联DEV_SPEC：4.5.1, 行3568
   - 验收标准：1.测试覆盖所有验证规则 2.测试通过 3.无效值正确抛异常
 
-→ 读取 references/module_A.md...
+→ 读取 .claude/skills/auto_develop/references/module_A.md...
   ✓ LLMConfig 接口定义
   ✓ 字段类型规范
   ✓ 验证规则详情
@@ -486,13 +486,13 @@ class LLMConfig(BaseModel):
 
 ## 参考文档
 
-### 必读文档（references/）
+### 必读文档
 | 文件 | 说明 | 读取时机 |
 |-----|------|---------|
 | Develop_schedule.md | 开发进度、任务列表、更新规则 | 每次开发开始时 |
 | One_page.md | 项目定位、核心设计哲学、最终目标 | 每次开发开始时 |
 
-### 模块参考文档（references/）
+### 模块参考文档
 | 文件 | 说明 | 读取时机 |
 |-----|------|---------|
 | module_A.md | 模块 A：基础设施与配置 | 开发模块 A 任务时 |
