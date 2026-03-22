@@ -3,16 +3,15 @@
 提供首次运行时的目录结构和默认文件创建功能。
 """
 
-import os
 from pathlib import Path
-from typing import List
+from typing import Any, cast
 
 
 # 默认存储路径
 DEFAULT_BASE_PATH = Path.home() / ".smartclaw"
 
 # 需要创建的子目录列表
-REQUIRED_DIRS: List[str] = [
+REQUIRED_DIRS: list[str] = [
     "store/core_memory",
     "store/memory",
     "store/rag",
@@ -23,7 +22,7 @@ REQUIRED_DIRS: List[str] = [
 ]
 
 # 核心记忆文件列表
-CORE_MEMORY_FILES: List[str] = [
+CORE_MEMORY_FILES: list[str] = [
     "SOUL.md",
     "IDENTITY.md",
     "USER.md",
@@ -68,7 +67,7 @@ def ensure_file(path: Path, content: str = "") -> bool:
         return False
 
 
-def initialize_storage(base_path: Path | None = None) -> dict:
+def initialize_storage(base_path: Path | None = None) -> dict[str, Any]:
     """初始化 SmartClaw 存储目录结构。
 
     Args:
@@ -80,11 +79,11 @@ def initialize_storage(base_path: Path | None = None) -> dict:
     if base_path is None:
         base_path = DEFAULT_BASE_PATH
 
-    result = {
+    result: dict[str, Any] = {
         "success": True,
-        "created_dirs": [],
-        "created_files": [],
-        "errors": [],
+        "created_dirs": cast(list[str], []),
+        "created_files": cast(list[str], []),
+        "errors": cast(list[str], []),
     }
 
     # 创建基础目录
