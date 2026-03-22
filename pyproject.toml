@@ -48,6 +48,10 @@ dev = [
 requires = ["setuptools>=69.0.0", "wheel>=0.43.0"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["backend*"]
+exclude = ["temp*", "文档*", "tests*"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
