@@ -71,7 +71,7 @@
 
 | 模块 | 总任务数 | 已完成 | 未完成 | 进行中 | 阻塞 | 完成率 |
 |-----|---------|-------|-------|-------|-----|-------|
-| A: 基础设施与配置 | 19 | 7 | 12 | 0 | 0 | 37% |
+| A: 基础设施与配置 | 19 | 9 | 10 | 0 | 0 | 47% |
 | B: Memory 模块 | 23 | 0 | 23 | 0 | 0 | 0% |
 | C: RAG 模块 | 25 | 0 | 25 | 0 | 0 | 0% |
 | D: 内置工具模块 | 21 | 0 | 21 | 0 | 0 | 0% |
@@ -79,7 +79,7 @@
 | F: FastAPI 接口 | 24 | 0 | 24 | 0 | 0 | 0% |
 | G: 系统集成测试 | 7 | 0 | 7 | 0 | 0 | 0% |
 | H: 初始化与启动 | 5 | 0 | 5 | 0 | 0 | 0% |
-| **总计** | **144** | **7** | **137** | **0** | **0** | **5%** |
+| **总计** | **144** | **9** | **135** | **0** | **0** | **6%** |
 
 ---
 
@@ -145,7 +145,7 @@
 |-----|---------|-------------|---------|---------|-------------|------|
 | A7 | 创建依赖清单文件 | **更新 pyproject.toml**：添加 langchain-anthropic, langchain-openai, llama-index-core, llama-index-embeddings-openai, llama-index-vector-stores-chroma 等依赖<br>**dev 依赖**：pytest, pytest-mock, pytest-asyncio, mypy, ruff, coverage | pyproject.toml 包含完整依赖，pip install -e ".[dev]" 成功 | [x] | 2026-03-22 | 使用 pyproject.toml 替代 requirements.txt |
 | A8 | 初始化用户数据目录 | **实现**: 调用 backend.init.initialize_storage() 创建完整目录结构<br>**验收**: ~/.smartclaw/ 目录包含所有子目录 | 目录结构完整，核心记忆文件存在 | [ ] | - | 需手动执行或应用启动时调用 |
-| A9 | 创建环境变量模板文件 | **创建 .env.example**：包含 ANTHROPIC_API_KEY, OPENAI_API_KEY 占位符 | .env.example 存在于项目根目录 | [ ] | - | 基础设施，无需TDD |
+| A9 | 创建环境变量模板文件 | **创建 .env.example**：包含 ANTHROPIC_API_KEY, OPENAI_API_KEY 占位符 | .env.example 存在于项目根目录 | [x] | 2026-03-22 | 按计划完成 |
 
 **⚠️ 重要**：完成 A9 后，用户需要在 `~/.smartclaw/.env` 文件中填入真实的 API Key：
 ```bash
@@ -162,7 +162,7 @@ OPENAI_API_KEY=your_real_key_here
 | A4 | 测试并实现 ContainerConfig | **测试**: 验证字段类型、默认值<br>**实现**: Pydantic 模型，包含 image, memory_limit, cpu_limit, auto_restart | 1.测试覆盖字段验证 2.测试通过 | [x] | 2026-03-22 | 按计划完成，13个测试用例全部通过 |
 | A5 | 测试并实现 Settings 类 | **测试**: 验证配置块加载、嵌套访问<br>**实现**: 主配置类，包含 storage, llm, embedding, agent, memory, rag, tools 配置块 | 1.测试覆盖所有配置块 2.测试通过 | [x] | 2026-03-22 | 按计划完成，11个Settings测试+32个其他测试通过 |
 | A6 | 测试并实现 ConfigManager.load() | **测试**: 验证文件加载、默认配置回退、缺失文件处理<br>**实现**: 从 ~/.smartclaw/config.yaml 加载配置 | 1.测试覆盖正常/异常场景 2.测试通过 | [x] | 2026-03-22 | 按计划完成，9个测试用例全部通过 |
-| A10 | 测试并实现 _expand_env_vars() | **测试**: 验证 ${VAR} 展开、嵌套变量、未定义变量处理<br>**实现**: 递归展开环境变量引用 | 1.测试覆盖各种变量场景 2.测试通过 | [ ] | - | |
+| A10 | 测试并实现 _expand_env_vars() | **测试**: 验证 ${VAR} 展开、嵌套变量、未定义变量处理<br>**实现**: 递归展开环境变量引用 | 1.测试覆盖各种变量场景 2.测试通过 | [x] | 2026-03-22 | 按计划完成，9个测试用例全部通过 |
 | A11 | 测试并实现 _validate_config() | **测试**: 验证必需字段检查、依赖关系验证、无效配置抛 ConfigError<br>**实现**: 配置有效性验证 | 1.测试覆盖验证规则 2.测试通过 | [ ] | - | |
 | A12 | 测试并实现 ConfigManager.get() | **测试**: 验证点分路径访问、嵌套路径、不存在路径返回 None<br>**实现**: 支持 "llm.default.model" 格式访问 | 1.测试覆盖路径访问 2.测试通过 | [ ] | - | |
 | T1 | 配置模块边界测试 | **测试**: 空配置、超大配置、循环引用、特殊字符 | 边界情况正确处理 | [ ] | - | 纯测试项 |
