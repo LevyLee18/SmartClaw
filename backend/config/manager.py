@@ -7,6 +7,7 @@ from typing import Any, Optional
 import yaml
 from pydantic import ValidationError
 
+from backend.config.errors import ConfigError
 from backend.config.models import Settings
 
 
@@ -184,12 +185,72 @@ class ConfigManager:
 
         return str(value) if value is not None else ""
 
+    def _get_nested_value(self, config: dict, key: str) -> Any:
+        """获取嵌套配置值
+
+        支持点分路径访问，如 "llm.default.model"
+
+        Args:
+            config: 配置字典
+            key: 点分格式的键（如 "llm.default.model"）
+
+        Returns:
+            配置值，如果不存在返回 None
+        """
+        keys = key.split(".")
+        value: Any = config
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return None
+        return value
+
     def _validate_config(self, config: dict) -> None:
-        """验证配置有效性"""
+        """验证配置有效性
+
+        检查：
+        - 必需的配置项是否存在
+        - 数值范围是否合法
+        - 依赖关系是否满足
+
+        Args:
+            config: 配置字典
+
+        Raises:
+            ConfigError: 配置验证失败时抛出
+        """
+        errors = []
+
+        # 验证必需的配置项
+        required_keys = ["storage.base_path", "llm.default.provider"]
+        for key in required_keys:
+            value = self._get_nested_value(config, key)
+            if value is None:
+                errors.append(f"Missing required config: {key}")
+
+        # 验证数值范围
+        flush_ratio = self._get_nested_value(config, "agent.session.flush_ratio")
+        if flush_ratio is not None and flush_ratio > 1:
+            errors.append("agent.session.flush_ratio must be <= 1")
+
+        # 使用 Pydantic 进行结构验证
         try:
             Settings(**config)
         except ValidationError as e:
-            raise ValueError(f"Invalid configuration: {e}")
+            # 将 Pydantic 错误转换为更友好的格式
+            for error in e.errors():
+                field = ".".join(str(loc) for loc in error["loc"])
+                msg = error["msg"]
+                errors.append(f"{field}: {msg}")
+
+        if errors:
+            raise ConfigError(
+                message="Config validation failed",
+                error_code="CFG_001",
+                detail="\n".join(errors),
+                suggestion="Please check your config.yaml file and fix the above errors",
+            )
 
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置项（支持点分路径如 llm.default.model）"""
