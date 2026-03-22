@@ -3,6 +3,128 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestSettings:
+    """Settings 测试类"""
+
+    def test_settings_with_minimal_config(self):
+        """测试最小配置"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert settings.storage is not None
+        assert settings.llm is not None
+
+    def test_settings_storage_config(self):
+        """测试存储配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.storage, "base_path")
+
+    def test_settings_llm_config(self):
+        """测试 LLM 配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.llm, "default")
+        assert hasattr(settings.llm.default, "provider")
+        assert hasattr(settings.llm.default, "model")
+
+    def test_settings_embedding_config(self):
+        """测试 Embedding 配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.embedding, "provider")
+        assert hasattr(settings.embedding, "model")
+
+    def test_settings_agent_config(self):
+        """测试 Agent 配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.agent, "session")
+        assert hasattr(settings.agent.session, "token_threshold")
+        assert hasattr(settings.agent.session, "flush_ratio")
+
+    def test_settings_memory_config(self):
+        """测试 Memory 配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.memory, "near_memory")
+        assert hasattr(settings.memory.near_memory, "days")
+
+    def test_settings_rag_config(self):
+        """测试 RAG 配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.rag, "top_k")
+        assert hasattr(settings.rag, "chunk_size")
+
+    def test_settings_tools_config(self):
+        """测试工具配置块"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        assert hasattr(settings.tools, "terminal")
+        assert hasattr(settings.tools.terminal, "image")
+        assert hasattr(settings.tools, "python_repl")
+
+    def test_settings_default_values(self):
+        """测试默认值"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        # Storage 默认值
+        assert str(settings.storage.base_path).endswith(".smartclaw")
+
+        # LLM 默认值
+        assert settings.llm.default.max_tokens == 4096
+        assert settings.llm.default.temperature == 0.7
+
+        # Agent 默认值
+        assert settings.agent.session.token_threshold == 3000
+        assert settings.agent.session.flush_ratio == 0.5
+
+        # RAG 默认值
+        assert settings.rag.top_k == 5
+        assert settings.rag.chunk_size == 1024
+
+    def test_settings_custom_values(self):
+        """测试自定义值"""
+        from backend.config.models import Settings
+
+        settings = Settings(
+            storage={"base_path": "/custom/path"},
+            llm={
+                "default": {
+                    "provider": "openai",
+                    "model": "gpt-4o",
+                    "api_key": "sk-test-key"
+                }
+            }
+        )
+        assert str(settings.storage.base_path) == "/custom/path"
+        assert settings.llm.default.provider == "openai"
+
+    def test_settings_nested_access(self):
+        """测试嵌套访问"""
+        from backend.config.models import Settings
+
+        settings = Settings()
+        # 确保所有嵌套属性都可以访问
+        _ = settings.storage.base_path
+        _ = settings.llm.default.provider
+        _ = settings.llm.default.model
+        _ = settings.embedding.provider
+        _ = settings.agent.session.token_threshold
+        _ = settings.memory.near_memory.days
+        _ = settings.rag.top_k
+        _ = settings.tools.terminal.image
+
+
 class TestLLMConfig:
     """LLMConfig 测试类"""
 
