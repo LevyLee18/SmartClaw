@@ -352,3 +352,256 @@ class TestCoreMemoryManagerExists:
         manager = CoreMemoryManager(base_path=temp_dir)
 
         assert manager.exists() is True
+
+
+class TestCoreMemoryManagerBoundary:
+    """CoreMemoryManager 边界测试
+
+    测试场景：
+    1. 缺失文件
+    2. 超大内容
+    3. 空文件
+    4. 特殊字符
+    """
+
+    def test_load_with_missing_some_files(self, temp_dir: Path) -> None:
+        """测试加载时部分文件缺失"""
+        from backend.memory.core import CoreMemoryFile, CoreMemoryManager
+
+        # 创建 core_memory 目录，只创建部分文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        # 只创建 SOUL.md 和 USER.md
+        (core_dir / CoreMemoryFile.SOUL.value).write_text("# SOUL\n\nSoul content")
+        (core_dir / CoreMemoryFile.USER.value).write_text("# USER\n\nUser content")
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        # 应该能加载存在的文件
+        assert "SOUL" in content
+        assert "USER" in content
+        # 缺失的文件不应导致错误
+
+    def test_load_with_all_files_missing(self, temp_dir: Path) -> None:
+        """测试加载时所有文件都缺失"""
+        from backend.memory.core import CoreMemoryManager
+
+        # 创建空的 core_memory 目录
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        # 空目录应返回空字符串
+        assert content == ""
+
+    def test_load_with_empty_files(self, temp_dir: Path) -> None:
+        """测试加载空文件"""
+        from backend.memory.core import CoreMemoryFile, CoreMemoryManager
+
+        # 创建 core_memory 目录和空文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        for file_enum in CoreMemoryFile:
+            file_path = core_dir / file_enum.value
+            file_path.write_text("")
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        # 空文件应被跳过
+        assert content == ""
+
+    def test_load_with_whitespace_only_files(self, temp_dir: Path) -> None:
+        """测试加载只有空白字符的文件"""
+        from backend.memory.core import CoreMemoryFile, CoreMemoryManager
+
+        # 创建 core_memory 目录和只有空白字符的文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        for file_enum in CoreMemoryFile:
+            file_path = core_dir / file_enum.value
+            file_path.write_text("   \n\n\t  \n  ")
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        # 只有空白字符的文件应被跳过
+        assert content == ""
+
+    def test_load_large_file(self, temp_dir: Path) -> None:
+        """测试加载大文件"""
+        from backend.memory.core import CoreMemoryFile, CoreMemoryManager
+
+        # 创建 core_memory 目录和大文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        # 创建 1MB 大小的内容
+        large_content = "# SOUL\n\n" + "x" * (1024 * 1024)
+        (core_dir / CoreMemoryFile.SOUL.value).write_text(large_content)
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        # 验证能正确加载大文件
+        assert len(content) > 1024 * 1024
+        assert "SOUL" in content
+
+    def test_load_file_with_special_characters(self, temp_dir: Path) -> None:
+        """测试加载包含特殊字符的文件"""
+        from backend.memory.core import CoreMemoryFile, CoreMemoryManager
+
+        # 创建 core_memory 目录和包含特殊字符的文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        special_content = "# 特殊字符测试\n\nEmoji: 🎉🚀💡\n中文内容\n日本語\n한국어"
+        (core_dir / CoreMemoryFile.USER.value).write_text(special_content)
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load()
+
+        assert "特殊字符测试" in content
+        assert "🎉" in content
+        assert "中文内容" in content
+
+    def test_write_large_content(self, temp_dir: Path) -> None:
+        """测试写入大内容"""
+        from backend.memory.core import CoreMemoryManager
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        # 创建 1MB 大小的内容
+        large_content = "x" * (1024 * 1024)
+        manager.write(file_key="user", content=large_content)
+
+        expected_file = manager.core_memory_dir / "USER.md"
+        file_content = expected_file.read_text()
+
+        assert len(file_content) > 1024 * 1024
+
+    def test_write_unicode_content(self, temp_dir: Path) -> None:
+        """测试写入 Unicode 内容"""
+        from backend.memory.core import CoreMemoryManager
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        unicode_content = "中文测试 🎉 日本語テスト"
+        manager.write(file_key="user", content=unicode_content)
+
+        expected_file = manager.core_memory_dir / "USER.md"
+        file_content = expected_file.read_text()
+
+        assert "中文测试" in file_content
+        assert "🎉" in file_content
+
+    def test_write_multiline_content(self, temp_dir: Path) -> None:
+        """测试写入多行内容"""
+        from backend.memory.core import CoreMemoryManager
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        multiline_content = """# Title
+
+First paragraph.
+
+## Section
+
+- Item 1
+- Item 2
+- Item 3
+
+```python
+def hello():
+    print("Hello, World!")
+```
+"""
+        manager.write(file_key="memory", content=multiline_content)
+
+        expected_file = manager.core_memory_dir / "MEMORY.md"
+        file_content = expected_file.read_text()
+
+        assert "# Title" in file_content
+        assert "## Section" in file_content
+        assert "def hello():" in file_content
+
+    def test_write_empty_content(self, temp_dir: Path) -> None:
+        """测试写入空内容"""
+        from backend.memory.core import CoreMemoryManager
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        # 写入空内容
+        manager.write(file_key="user", content="")
+
+        expected_file = manager.core_memory_dir / "USER.md"
+
+        # 文件应该被创建
+        assert expected_file.exists()
+
+    def test_load_by_file_key_with_missing_file(self, temp_dir: Path) -> None:
+        """测试通过 file_key 加载不存在的文件"""
+        from backend.memory.core import CoreMemoryManager
+
+        # 创建空的 core_memory 目录
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+        content = manager.load(file_key="user")
+
+        # 不存在的文件应返回空字符串
+        assert content == ""
+
+    def test_exists_with_non_md_files(self, temp_dir: Path) -> None:
+        """测试目录中有非 .md 文件时的 exists()"""
+        from backend.memory.core import CoreMemoryManager
+
+        # 创建 core_memory 目录和非 .md 文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+        (core_dir / "test.txt").write_text("text file")
+        (core_dir / "readme").write_text("no extension")
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        # 只有非 .md 文件，exists() 应返回 False
+        assert manager.exists() is False
+
+    def test_exists_with_mixed_files(self, temp_dir: Path) -> None:
+        """测试目录中有混合文件时的 exists()"""
+        from backend.memory.core import CoreMemoryManager
+
+        # 创建 core_memory 目录和混合文件
+        core_dir = temp_dir / "core_memory"
+        core_dir.mkdir(parents=True)
+        (core_dir / "test.txt").write_text("text file")
+        (core_dir / "SOUL.md").write_text("markdown file")
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        # 有 .md 文件，exists() 应返回 True
+        assert manager.exists() is True
+
+    def test_multiple_append_writes(self, temp_dir: Path) -> None:
+        """测试多次追加写入"""
+        from backend.memory.core import CoreMemoryManager
+
+        manager = CoreMemoryManager(base_path=temp_dir)
+
+        # 多次追加写入
+        for i in range(10):
+            manager.write(file_key="memory", content=f"Content {i}")
+
+        expected_file = manager.core_memory_dir / "MEMORY.md"
+        file_content = expected_file.read_text()
+
+        # 所有内容都应该存在
+        for i in range(10):
+            assert f"Content {i}" in file_content
