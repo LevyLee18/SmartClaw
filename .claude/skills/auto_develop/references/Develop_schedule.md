@@ -71,7 +71,7 @@
 
 | 模块 | 总任务数 | 已完成 | 未完成 | 进行中 | 阻塞 | 完成率 |
 |-----|---------|-------|-------|-------|-----|-------|
-| A: 基础设施与配置 | 21 | 18 | 3 | 0 | 0 | 86% |
+| A: 基础设施与配置 | 21 | 21 | 0 | 0 | 0 | 100% |
 | B: Memory 模块 | 23 | 0 | 23 | 0 | 0 | 0% |
 | C: RAG 模块 | 25 | 0 | 25 | 0 | 0 | 0% |
 | D: 内置工具模块 | 21 | 0 | 21 | 0 | 0 | 0% |
@@ -79,7 +79,7 @@
 | F: FastAPI 接口 | 24 | 0 | 24 | 0 | 0 | 0% |
 | G: 系统集成测试 | 7 | 0 | 7 | 0 | 0 | 0% |
 | H: 初始化与启动 | 5 | 0 | 5 | 0 | 0 | 0% |
-| **总计** | **146** | **16** | **130** | **0** | **0** | **11%** |
+| **总计** | **146** | **21** | **125** | **0** | **0** | **14%** |
 
 ---
 
@@ -193,23 +193,23 @@ uv run mypy backend/       # 类型检查
 
 | 编号 | 开发内容 | 开发功能描述（含测试要点） | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
 |-----|---------|--------------------------|---------|---------|-------------|------|
-| A18 | 测试并实现 SmartClawError 基类 | **测试**: 验证 error_code, message, detail, suggestion 属性<br>**实现**: 错误基类 | 1.测试覆盖所有属性 2.测试通过 | [ ] | - | |
-| A19 | 测试并实现错误子类 | **测试**: 验证各错误类错误码格式（CFG_XXX, SES_XXX, MEM_XXX 等）<br>**实现**: ConfigError, SessionError, MemoryError, RAGError, ToolError, ContainerError, SecurityError | 1.测试覆盖所有错误类型 2.测试通过 | [ ] | - | |
+| A18 | 测试并实现 SmartClawError 基类 | **测试**: 验证 error_code, message, detail, suggestion 属性<br>**实现**: 错误基类 | 1.测试覆盖所有属性 2.测试通过 | [x] | 2026-03-23 | 按计划完成，23个测试用例全部通过（含A19子类） |
+| A19 | 测试并实现错误子类 | **测试**: 验证各错误类错误码格式（CFG_XXX, SES_XXX, MEM_XXX 等）<br>**实现**: ConfigError, SessionError, MemoryError, RAGError, ToolError, ContainerError, SecurityError | 1.测试覆盖所有错误类型 2.测试通过 | [x] | 2026-03-23 | 与A18一起完成，7个错误子类全部实现 |
 
 ### A.5 项目结构完整性验证（无测试）
 
 | 编号 | 开发内容 | 开发功能描述 | 验收标准 | 开发进度 | 任务完成日期 | 备注 |
 |-----|---------|-------------|---------|---------|-------------|------|
-| A20 | 验证并补全项目目录结构 | **验证源代码目录**：backend/ 及所有子模块目录<br>**验证测试目录**：tests/ 及分层子目录<br>**补充缺失目录**：创建任何缺失的目录和 __init__.py<br>**验证用户数据目录**：~/.smartclaw/ 结构完整 | 1. 项目目录结构与 DEV_SPEC 一致 2. 所有 __init__.py 存在 3. 用户数据目录可正常初始化 | [ ] | - | A 模块最终验证任务 |
+| A20 | 验证并补全项目目录结构 | **验证源代码目录**：backend/ 及其子模块目录<br>**验证测试目录**：tests/ 及分层子目录<br>**补充缺失目录**：创建任何缺失的目录和 __init__.py<br>**验证用户数据目录**：~/.smartclaw/ 结构完整 | 1. 项目目录结构与 DEV_SPEC 一致 2. 所有 __init__.py 存在 3. 用户数据目录可正常初始化 | [x] | 2026-03-25 | 按计划完成。补全 backend/api/routers/, backend/api/models/, tests/api/, tests/e2e/, tests/boundary/，创建 conftest.py |
 
 **验收清单**：
-- [ ] backend/ 目录结构完整
-- [ ] tests/ 目录结构完整（unit/, api/, integration/, e2e/, boundary/）
-- [ ] 所有 __init__.py 文件存在
-- [ ] pyproject.toml 依赖配置正确
-- [ ] .env.example 文件存在
-- [ ] `uv pip install -e ".[dev]"` 成功
-- [ ] `python -m backend.init` 可正常初始化用户目录
+- [x] backend/ 目录结构完整
+- [x] tests/ 目录结构完整（unit/, api/, integration/, e2e/, boundary/）
+- [x] 所有 __init__.py 文件存在
+- [x] pyproject.toml 依赖配置正确
+- [x] .env.example 文件存在
+- [x] `uv pip install -e ".[dev]"` 成功
+- [x] `python -m backend.init` 可正常初始化用户目录
 
 ---
 
