@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.11",
     "pydantic-settings>=2.1.0",
     "pyyaml>=6.0",
+    "filelock>=3.15.0",
     # Agent Framework
     "langchain>=1.0.0",
     "langchain-anthropic>=1.0.0",

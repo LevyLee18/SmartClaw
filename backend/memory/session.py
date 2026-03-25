@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import filelock
+
 from backend.memory.base import MemoryManager
 
 
@@ -207,8 +209,11 @@ class SessionManager(MemoryManager):
         random_suffix = uuid.uuid4().hex[:6]
         return f"{timestamp}-{random_suffix}"
 
-    def _read_sessions_json(self) -> dict:
-        """读取 sessions.json
+    def _read_sessions_json(self, *, use_lock: bool = True) -> dict:
+        """读取 sessions.json（带文件锁保护）
+
+        Args:
+            use_lock: 是否使用文件锁，默认 True。内部调用时可设为 False（已在锁内）。
 
         Returns:
             sessions.json 内容，如果不存在返回默认结构
@@ -216,11 +221,22 @@ class SessionManager(MemoryManager):
         if not self.sessions_json_path.exists():
             return {"version": "1.0", "sessions": {}}
 
-        with open(self.sessions_json_path, encoding="utf-8") as f:
-            return json.load(f)
+        lock_path = str(self.sessions_json_path) + ".lock"
+
+        def _read():
+            with open(self.sessions_json_path, encoding="utf-8") as f:
+                return json.load(f)
+
+        if use_lock:
+            with filelock.FileLock(lock_path, timeout=10):
+                return _read()
+        else:
+            return _read()
 
     def _update_sessions_json(self, update_func) -> None:
-        """更新 sessions.json
+        """更新 sessions.json（带文件锁）
+
+        使用文件锁确保并发写入安全。
 
         Args:
             update_func: 更新函数，接收数据字典作为参数
@@ -228,12 +244,17 @@ class SessionManager(MemoryManager):
         # 确保目录存在
         self.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # 读取现有数据
-        data = self._read_sessions_json()
+        # 创建锁文件路径
+        lock_path = str(self.sessions_json_path) + ".lock"
 
-        # 应用更新
-        update_func(data)
+        # 使用文件锁确保并发安全
+        with filelock.FileLock(lock_path, timeout=10):
+            # 读取现有数据（已在锁内，不需要再加锁）
+            data = self._read_sessions_json(use_lock=False)
 
-        # 写回文件
-        with open(self.sessions_json_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            # 应用更新
+            update_func(data)
+
+            # 写回文件
+            with open(self.sessions_json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)

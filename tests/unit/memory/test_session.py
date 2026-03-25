@@ -388,3 +388,364 @@ class TestSessionManagerExists:
         manager.create_session("test-key")
 
         assert manager.exists() is True
+
+
+class TestSessionManagerBoundary:
+    """SessionManager 边界测试
+
+    测试场景：
+    1. 并发创建
+    2. 重复 session_key
+    3. 损坏的 JSON
+    4. 其他边界情况
+    """
+
+    def test_create_session_with_duplicate_key_overwrites(self, temp_dir: Path) -> None:
+        """测试重复 session_key 创建会覆盖原会话"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 第一次创建
+        session1 = manager.create_session("duplicate-key")
+        original_session_id = session1.session_id
+
+        # 第二次创建（相同 key）
+        session2 = manager.create_session("duplicate-key")
+
+        # 应该返回新的 session（不同的 session_id）
+        assert session2.session_key == "duplicate-key"
+        # session_id 应该不同（因为是新生成的）
+        assert session2.session_id != original_session_id
+
+    def test_create_session_with_duplicate_key_updates_sessions_json(
+        self, temp_dir: Path
+    ) -> None:
+        """测试重复 session_key 创建更新 sessions.json"""
+        import json
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 第一次创建
+        manager.create_session("duplicate-key")
+
+        # 第二次创建（相同 key）
+        manager.create_session("duplicate-key")
+
+        # sessions.json 中应该只有一个条目
+        with open(manager.sessions_json_path) as f:
+            data = json.load(f)
+
+        assert len(data["sessions"]) == 1
+        assert "duplicate-key" in data["sessions"]
+
+    def test_read_sessions_json_with_corrupted_json_raises_error(
+        self, temp_dir: Path
+    ) -> None:
+        """测试损坏的 JSON 文件导致 JSONDecodeError"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建损坏的 sessions.json
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.sessions_json_path.write_text("{ invalid json content")
+
+        # 读取损坏的 JSON 应该抛出 JSONDecodeError
+        import json
+
+        with pytest.raises(json.JSONDecodeError):
+            manager._read_sessions_json()
+
+    def test_get_session_with_corrupted_json_raises_error(self, temp_dir: Path) -> None:
+        """测试损坏的 JSON 文件时获取会话抛出 JSONDecodeError"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建损坏的 sessions.json
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.sessions_json_path.write_text("{ invalid json content")
+
+        # 获取会话应该抛出 JSONDecodeError
+        import json
+
+        with pytest.raises(json.JSONDecodeError):
+            manager.get_session("any-key")
+
+    def test_exists_with_corrupted_json_raises_error(self, temp_dir: Path) -> None:
+        """测试损坏的 JSON 文件时 exists() 抛出 JSONDecodeError"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建损坏的 sessions.json
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.sessions_json_path.write_text("{ invalid json content")
+
+        # exists() 应该抛出 JSONDecodeError
+        import json
+
+        with pytest.raises(json.JSONDecodeError):
+            manager.exists()
+
+    def test_concurrent_create_sessions(self, temp_dir: Path) -> None:
+        """测试并发创建会话
+
+        使用文件锁确保并发写入安全。
+        """
+        import concurrent.futures
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        def create_session(key: str):
+            return manager.create_session(key)
+
+        # 并发创建 10 个会话
+        keys = [f"concurrent-key-{i}" for i in range(10)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(create_session, key) for key in keys]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        # 所有会话应该成功创建
+        assert len(results) == 10
+
+        # 验证所有会话都被记录
+        for key in keys:
+            session = manager.get_session(key)
+            assert session is not None
+            assert session.session_key == key
+
+    def test_concurrent_update_last_active(self, temp_dir: Path) -> None:
+        """测试并发更新活跃时间
+
+        使用文件锁确保并发写入安全。
+        """
+        """测试并发更新活跃时间"""
+        import concurrent.futures
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 先创建一个会话
+        manager.create_session("test-key")
+
+        def update_active():
+            manager.update_last_active("test-key")
+            return True
+
+        # 并发更新 10 次
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(update_active) for _ in range(10)]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        # 所有更新应该成功
+        assert all(results)
+
+        # 验证会话仍然存在
+        session = manager.get_session("test-key")
+        assert session is not None
+
+    def test_sessions_json_with_missing_sessions_key(self, temp_dir: Path) -> None:
+        """测试 sessions.json 缺少 sessions 键"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建缺少 sessions 键的 JSON
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.sessions_json_path.write_text('{"version": "1.0"}')
+
+        # get_session 应该正常处理（返回 None）
+        result = manager.get_session("any-key")
+        assert result is None
+
+        # exists 应该正常处理（返回 False）
+        assert manager.exists() is False
+
+    def test_sessions_json_with_empty_sessions(self, temp_dir: Path) -> None:
+        """测试 sessions.json 包含空 sessions"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建空 sessions
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        manager.sessions_json_path.write_text('{"version": "1.0", "sessions": {}}')
+
+        # get_session 应该返回 None
+        result = manager.get_session("any-key")
+        assert result is None
+
+        # exists 应该返回 False
+        assert manager.exists() is False
+
+    def test_archive_session_with_missing_file(self, temp_dir: Path) -> None:
+        """测试归档会话时会话文件不存在"""
+        import json
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 手动创建 sessions.json（不创建会话文件）
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        session_data = {
+            "version": "1.0",
+            "sessions": {
+                "test-key": {
+                    "session_id": "2026-03-25-abc123",
+                    "created_at": "2026-03-25T10:00:00",
+                    "last_active": "2026-03-25T10:00:00",
+                    "status": "active",
+                    "message_count": 0,
+                    "token_count": 0,
+                }
+            },
+        }
+        manager.sessions_json_path.write_text(json.dumps(session_data))
+
+        # 归档应该成功（即使文件不存在）
+        manager.archive_session("test-key")
+
+        # 验证状态已更新
+        session = manager.get_session("test-key")
+        assert session is not None
+        assert session.status == "archived"
+
+    def test_get_session_with_missing_required_fields(self, temp_dir: Path) -> None:
+        """测试 sessions.json 缺少必需字段"""
+        import json
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建缺少必需字段的 JSON
+        manager.sessions_json_path.parent.mkdir(parents=True, exist_ok=True)
+        session_data = {
+            "version": "1.0",
+            "sessions": {
+                "test-key": {
+                    "session_id": "2026-03-25-abc123",
+                    # 缺少 created_at, last_active, status
+                }
+            },
+        }
+        manager.sessions_json_path.write_text(json.dumps(session_data))
+
+        # get_session 应该抛出 KeyError
+        with pytest.raises(KeyError):
+            manager.get_session("test-key")
+
+    def test_update_last_active_concurrent_with_create(
+        self, temp_dir: Path
+    ) -> None:
+        """测试并发创建和更新
+
+        使用文件锁确保并发写入安全。
+        """
+        import concurrent.futures
+
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        def create_and_update(key: str):
+            # 创建会话
+            manager.create_session(key)
+            # 立即更新
+            manager.update_last_active(key)
+            return key
+
+        # 并发创建和更新 10 个会话
+        keys = [f"concurrent-key-{i}" for i in range(10)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(create_and_update, key) for key in keys]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+        # 所有操作应该成功
+        assert len(results) == 10
+
+        # 验证所有会话都被正确创建和更新
+        for key in keys:
+            session = manager.get_session(key)
+            assert session is not None
+            assert session.session_key == key
+
+    def test_create_session_with_special_characters_in_key(self, temp_dir: Path) -> None:
+        """测试 session_key 包含特殊字符"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建包含特殊字符的 session_key
+        special_key = "test-key-特殊字符-🎉-unicode"
+        session = manager.create_session(special_key)
+
+        assert session.session_key == special_key
+
+        # 验证可以正确获取
+        retrieved = manager.get_session(special_key)
+        assert retrieved is not None
+        assert retrieved.session_key == special_key
+
+    def test_create_session_with_very_long_key(self, temp_dir: Path) -> None:
+        """测试非常长的 session_key"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建很长的 session_key
+        long_key = "a" * 1000
+        session = manager.create_session(long_key)
+
+        assert session.session_key == long_key
+
+        # 验证可以正确获取
+        retrieved = manager.get_session(long_key)
+        assert retrieved is not None
+        assert retrieved.session_key == long_key
+
+    def test_archive_session_already_archived(self, temp_dir: Path) -> None:
+        """测试归档已经归档的会话"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建并归档
+        manager.create_session("test-key")
+        manager.archive_session("test-key")
+
+        # 再次归档（应该成功，幂等操作）
+        manager.archive_session("test-key")
+
+        # 验证状态仍然是 archived
+        session = manager.get_session("test-key")
+        assert session is not None
+        assert session.status == "archived"
+
+    def test_multiple_sessions_same_day(self, temp_dir: Path) -> None:
+        """测试同一天创建多个会话"""
+        from backend.memory.session import SessionManager
+
+        manager = SessionManager(base_path=temp_dir)
+
+        # 创建多个会话
+        sessions = [manager.create_session(f"key-{i}") for i in range(5)]
+
+        # 所有 session_id 应该以相同日期开头
+        today = sessions[0].session_id[:10]
+        for session in sessions:
+            assert session.session_id.startswith(today)
+
+        # 所有 session_id 应该不同
+        session_ids = [s.session_id for s in sessions]
+        assert len(set(session_ids)) == 5
