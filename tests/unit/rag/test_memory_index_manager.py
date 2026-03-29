@@ -694,3 +694,489 @@ class TestDocumentOperations:
             result = manager.build_index(force=True)
 
             assert result is True
+
+
+class TestSearchWithFilters:
+    """测试 _search_with_filters 方法"""
+
+    def test_search_with_filters_exists(self, tmp_path: Path):
+        """测试 _search_with_filters 方法存在"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            assert hasattr(manager, "_search_with_filters")
+            assert callable(manager._search_with_filters)
+
+    def test_search_with_filters_returns_list(self, tmp_path: Path):
+        """测试 _search_with_filters 返回列表"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # Mock _vector_search 和 _bm25_search
+            manager._vector_search = lambda q, k: []
+            manager._bm25_search = lambda q, k: []
+            manager._rrf_fusion = lambda v, b, k: []
+
+            filters = {"start_date": "2024-01-01", "end_date": "2024-12-31"}
+            results = manager._search_with_filters("test query", 5, filters)
+
+            assert isinstance(results, list)
+
+    def test_search_with_filters_accepts_date_range(self, tmp_path: Path):
+        """测试 _search_with_filters 接受日期范围"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            manager._vector_search = lambda q, k: []
+            manager._bm25_search = lambda q, k: []
+            manager._rrf_fusion = lambda v, b, k: []
+
+            # 测试不同日期格式
+            filters1 = {"start_date": "2024-01-01"}
+            filters2 = {"end_date": "2024-12-31"}
+            filters3 = {"start_date": "2024-01-01", "end_date": "2024-12-31"}
+
+            # 不应抛出异常
+            manager._search_with_filters("test", 5, filters1)
+            manager._search_with_filters("test", 5, filters2)
+            manager._search_with_filters("test", 5, filters3)
+
+    def test_search_with_filters_handles_empty_filters(self, tmp_path: Path):
+        """测试 _search_with_filters 处理空过滤器"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            manager._vector_search = lambda q, k: []
+            manager._bm25_search = lambda q, k: []
+            manager._rrf_fusion = lambda v, b, k: []
+
+            # 空过滤器应该正常工作
+            results = manager._search_with_filters("test", 5, {})
+            assert isinstance(results, list)
+
+    def test_search_with_filters_handles_none_filters(self, tmp_path: Path):
+        """测试 _search_with_filters 处理 None 过滤器"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            manager._vector_search = lambda q, k: []
+            manager._bm25_search = lambda q, k: []
+            manager._rrf_fusion = lambda v, b, k: []
+
+            # None 过滤器应该正常工作
+            results = manager._search_with_filters("test", 5, None)
+            assert isinstance(results, list)
+
+
+class TestExtractDateFromPath:
+    """测试 _extract_date_from_path 方法"""
+
+    def test_extract_date_from_path_exists(self, tmp_path: Path):
+        """测试 _extract_date_from_path 方法存在"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            assert hasattr(manager, "_extract_date_from_path")
+            assert callable(manager._extract_date_from_path)
+
+    def test_extract_date_from_yyyy_mm_dd_format(self, tmp_path: Path):
+        """测试从 YYYY-MM-DD 格式路径提取日期"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # 测试各种路径格式
+            result = manager._extract_date_from_path("/docs/2024-03-15/note.md")
+            assert result == "2024-03-15"
+
+    def test_extract_date_from_yyyy_mm_dd_format(self, tmp_path: Path):
+        """测试从 YYYY/MM/DD 格式路径提取日期"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            result = manager._extract_date_from_path("/docs/2024/03/15/note.md")
+            assert result == "2024-03-15"
+
+    def test_extract_date_returns_none_for_no_date(self, tmp_path: Path):
+        """测试无日期路径返回 None"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            result = manager._extract_date_from_path("/docs/notes/meeting.md")
+            assert result is None
+
+    def test_extract_date_handles_various_formats(self, tmp_path: Path):
+        """测试处理多种日期格式"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # YYYY-MM-DD 在路径中
+            assert manager._extract_date_from_path("/2024-01-15/file.md") == "2024-01-15"
+            # YYYY/MM/DD 在路径中
+            assert manager._extract_date_from_path("/2024/01/15/file.md") == "2024-01-15"
+            # 无日期
+            assert manager._extract_date_from_path("/documents/file.md") is None
+
+
+class TestMemoryIndexManagerBoundary:
+    """MemoryIndexManager 边界测试"""
+
+    def test_search_on_empty_index(self, tmp_path: Path):
+        """测试空索引检索"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # 空索引检索应返回空列表
+            results = manager.search("any query")
+            assert results == []
+
+    def test_update_document_empty_content(self, tmp_path: Path):
+        """测试空内容文档"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_index = MagicMock()
+            mock_index.insert_nodes = MagicMock()
+            mock_idx.from_vector_store.return_value = mock_index
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # Mock splitter 返回空节点列表
+            manager.splitter = MagicMock()
+            manager.splitter.get_nodes_from_documents.return_value = []
+
+            result = manager.update_document("empty_doc", "")
+            assert result is True
+            # 空内容文档会被添加，但节点列表为空
+            assert "empty_doc" in manager.doc_store
+            assert manager.doc_store["empty_doc"] == []
+
+    def test_update_document_special_characters(self, tmp_path: Path):
+        """测试特殊字符文档"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_index = MagicMock()
+            mock_index.insert_nodes = MagicMock()
+            mock_idx.from_vector_store.return_value = mock_index
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # Mock splitter
+            mock_node = MagicMock()
+            mock_node.node_id = "special-node-id"
+            manager.splitter = MagicMock()
+            manager.splitter.get_nodes_from_documents.return_value = [mock_node]
+
+            # 特殊字符内容
+            special_content = "特殊字符: 中文、日本語、한국어、emoji 🎉 and symbols @#$%^&*()"
+            result = manager.update_document("special_doc", special_content)
+
+            assert result is True
+            assert "special_doc" in manager.doc_store
+
+    def test_update_document_unicode_doc_id(self, tmp_path: Path):
+        """测试 Unicode 文档 ID"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_index = MagicMock()
+            mock_index.insert_nodes = MagicMock()
+            mock_idx.from_vector_store.return_value = mock_index
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # Mock splitter
+            mock_node = MagicMock()
+            mock_node.node_id = "unicode-node-id"
+            manager.splitter = MagicMock()
+            manager.splitter.get_nodes_from_documents.return_value = [mock_node]
+
+            # Unicode 文档 ID
+            unicode_doc_id = "文档/ドキュメント/문서"
+            result = manager.update_document(unicode_doc_id, "test content")
+
+            assert result is True
+            assert unicode_doc_id in manager.doc_store
+
+    def test_delete_nonexistent_document(self, tmp_path: Path):
+        """测试删除不存在的文档"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # 删除不存在的文档应返回 True
+            result = manager.delete_document("nonexistent_doc")
+            assert result is True
+
+    def test_search_with_filters_empty_results(self, tmp_path: Path):
+        """测试过滤后无结果"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # Mock 检索返回结果，但时间戳不匹配过滤器
+            from backend.rag.models import Segment
+
+            manager._vector_search = lambda q, k: [
+                Segment(content="old doc", source="test", file_type="md", score=0.9, timestamp="2020-01-01")
+            ]
+            manager._bm25_search = lambda q, k: []
+            manager._rrf_fusion = lambda v, b, k: v
+
+            # 过滤 2024 年，但文档是 2020 年
+            filters = {"start_date": "2024-01-01", "end_date": "2024-12-31"}
+            results = manager._search_with_filters("test", 5, filters)
+
+            assert results == []
+
+    def test_extract_date_from_invalid_path(self, tmp_path: Path):
+        """测试从无效路径提取日期"""
+        with patch(
+            "backend.rag.memory_index_manager.OpenAIEmbedding"
+        ) as mock_embed, patch(
+            "backend.rag.memory_index_manager.chromadb.PersistentClient"
+        ) as mock_chroma, patch(
+            "backend.rag.memory_index_manager.ChromaVectorStore"
+        ) as mock_vs, patch(
+            "backend.rag.memory_index_manager.VectorStoreIndex"
+        ) as mock_idx:
+            mock_embed.return_value = MagicMock()
+            mock_chroma.return_value = MagicMock()
+            mock_chroma.return_value.get_or_create_collection.return_value = MagicMock()
+            mock_vs.return_value = MagicMock()
+            mock_idx.from_vector_store.return_value = MagicMock()
+
+            config = create_mock_settings(tmp_path)
+            manager = MemoryIndexManager(config)
+
+            # 无效日期格式
+            assert manager._extract_date_from_path("/invalid-date/file.md") is None
+            assert manager._extract_date_from_path("/99-99-99/file.md") is None
+            assert manager._extract_date_from_path("") is None
+
