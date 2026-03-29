@@ -195,6 +195,52 @@ class ToolsConfig(BaseModel):
     )
 
 
+class SecurityConfig(BaseModel):
+    """安全配置"""
+
+    allowed_extensions: list[str] = Field(
+        default=[
+            ".md",
+            ".txt",
+            ".py",
+            ".js",
+            ".ts",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".html",
+            ".css",
+            ".xml",
+            ".csv",
+            ".sh",
+        ],
+        description="允许的文件扩展名",
+    )
+    banned_commands: list[str] = Field(
+        default=[
+            "rm -rf",
+            "sudo rm",
+            "sudo",
+            "mkfs",
+            "dd",
+            "reboot",
+            "shutdown",
+            "halt",
+            "init 0",
+            "init 6",
+        ],
+        description="直接禁止的命令",
+    )
+    confirm_commands: list[str] = Field(
+        default=["rm", "mv", "cp", "chmod", "chown", "git push", "pip install"],
+        description="需要确认的命令",
+    )
+    max_command_length: int = Field(
+        default=10000, ge=1, description="最大命令长度"
+    )
+
+
 class LLMConfigWrapper(BaseModel):
     """LLM 配置包装器"""
 
@@ -238,4 +284,7 @@ class Settings(BaseModel):
     rag: RAGConfig = Field(default_factory=RAGConfig, description="RAG 配置")
     tools: ToolsConfig = Field(
         default_factory=ToolsConfig, description="工具配置"
+    )
+    security: SecurityConfig = Field(
+        default_factory=SecurityConfig, description="安全配置"
     )
