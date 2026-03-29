@@ -29,6 +29,7 @@ dependencies = [
     "llama-index-core>=0.11.0",
     "llama-index-embeddings-openai>=0.2.0",
     "llama-index-vector-stores-chroma>=0.2.0",
+    "llama-index-retrievers-bm25>=0.3.0",
     # File Watcher
     "watchdog>=4.0.0",
 ]
