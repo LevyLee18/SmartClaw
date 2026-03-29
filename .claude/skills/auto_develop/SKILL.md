@@ -37,6 +37,20 @@ description: |
 
 **禁止**在用户确认前自动执行 Git 提交或继续下一个任务。
 
+### 环境隔离铁律
+
+**重要**：任何开发任务必须使用 `uv run` 在虚拟环境中执行命令。
+
+**执行规则**：
+1. **首次开发**：先完成任务 A13（创建 uv 虚拟环境并安装依赖）
+2. **测试运行**：使用 `uv run pytest` 确保在隔离环境中运行
+3. **代码检查**：使用 `uv run ruff check` 和 `uv run mypy` 确保在隔离环境中运行
+4. **其他命令**：使用 `uv run <command>` 在虚拟环境中执行
+
+**禁止**：
+- 直接运行 `pytest`、`ruff`、`mypy` 等命令（可能使用系统 Python）
+- 依赖 `source .venv/bin/activate`（shell 环境不持久）
+
 ---
 
 ## 必读文档（每次开发前必须阅读）
@@ -83,7 +97,7 @@ description: |
    → git checkout -b feature/{模块名}
 
 2. 完成任务后提交
-   → git add Develop_schedule.md backend/ tests/
+   → git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
    → git commit -m "feat({模块}): 完成任务 {任务编号} - {任务名称}"
    → git push -u origin feature/{模块名}  (首次推送)
    → git push  (后续推送)
@@ -231,7 +245,7 @@ description: |
    git checkout feature/{当前模块}
 
    # 暂存文件
-   git add Develop_schedule.md backend/ tests/
+   git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
 
    # 本地提交
    git commit -m "feat({模块}): 完成任务 {任务编号} - {任务名称}"
@@ -474,7 +488,7 @@ class LLMConfig(BaseModel):
 
 → 请确认后续动作：
   1. 是否执行 Git 提交？
-     git add Develop_schedule.md backend/ tests/
+     git add .claude/skills/auto_develop/references/Develop_schedule.md backend/ tests/
      git commit -m "feat: 完成任务 A3 - 测试并实现 LLMConfig"
   2. 是否继续下一个任务：A4（测试并实现 ContainerConfig）？
   3. 是否有其他需要调整的内容？
