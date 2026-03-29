@@ -588,3 +588,184 @@ class TestConfigManagerExpandEnvVars:
         assert config["storage"]["base_path"] == "/home/user/smartclaw"
         assert config["logs"]["path"] == "/home/user/smartclaw/logs"
         assert config["llm"]["default"]["api_key"] == "sk-test-key"
+
+
+class TestConfigManagerBoundary:
+    """ConfigManager 边界测试类"""
+
+    def test_empty_config_file(self, tmp_path: Path):
+        """测试空配置文件"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        # 创建空配置文件
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump({}, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        # 空配置应使用默认配置
+        assert config is not None
+        assert isinstance(config, dict)
+
+    def test_very_large_config(self, tmp_path: Path):
+        """测试超大配置"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        # 创建包含大量配置项的配置
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                    "api_key": "test-key",
+                }
+            },
+            "large_list": list(range(1000)),  # 1000 个元素的列表
+            "deep_nested": {
+                "level1": {
+                    "level2": {
+                        "level3": {
+                            "level4": {
+                                "level5": {
+                                    "value": "deep_value"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        # 验证深度嵌套值
+        assert config["deep_nested"]["level1"]["level2"]["level3"]["level4"]["level5"]["value"] == "deep_value"
+        assert len(config["large_list"]) == 1000
+
+    def test_circular_config_reference(self, tmp_path: Path):
+        """测试循环引用"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        # 创建循环引用配置
+        config_content = {
+            "storage": {"base_path": "${logs.path}"},  # 引用 logs.path
+            "logs": {"path": "${storage.base_path}/logs"},  # 引用 storage.base_path
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        # 循环引用：storage.base_path 引用 logs.path，logs.path 引用 storage.base_path
+        # 实际行为：logs.path 先展开，遇到 storage.base_path 循环引用返回空，得到 "/logs"
+        # 然后 storage.base_path 得到 logs.path 的值 "/logs"
+        assert config["storage"]["base_path"] == "/logs"
+        assert config["logs"]["path"] == "/logs"
+
+    def test_special_characters_in_config(self, tmp_path: Path):
+        """测试配置中的特殊字符"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        # 创建包含特殊字符的配置
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "special": {
+                "emoji": "🚀 SmartClaw",
+                "chinese": "中文测试",
+                "special_chars": "a@b#c$1!2&3*4%5",
+            },
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        assert config["special"]["emoji"] == "🚀 SmartClaw"
+        assert config["special"]["chinese"] == "中文测试"
+        assert "!" in config["special"]["special_chars"]
+
+    def test_empty_string_values(self, tmp_path: Path):
+        """测试空字符串值"""
+        import yaml
+
+        from backend.config.manager import ConfigManager
+
+        # 重置单例
+        ConfigManager._instance = None
+        ConfigManager._config = None
+
+        # 创建包含空字符串值的配置
+        config_content = {
+            "storage": {"base_path": str(tmp_path)},
+            "empty_values": {
+                "empty_string": "",
+                "none_value": None,
+            },
+            "llm": {
+                "default": {
+                    "provider": "anthropic",
+                    "api_key": "test-key",
+                }
+            },
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_content, f)
+
+        with mock.patch.object(Path, "expanduser", return_value=config_file):
+            manager = ConfigManager()
+            config = manager.get_config()
+
+        assert config["empty_values"]["empty_string"] == ""
+        assert config["empty_values"]["none_value"] is None
