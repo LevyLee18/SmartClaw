@@ -142,6 +142,120 @@ class MemoryIndexManager(IndexManager):
 
         return fused_results
 
+    def _search_with_filters(
+        self,
+        query: str,
+        top_k: int,
+        filters: dict[str, Any] | None = None,
+    ) -> list[Segment]:
+        """带过滤条件的检索
+
+        执行混合检索并根据日期等条件过滤结果。
+
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+            filters: 过滤条件，支持:
+                - start_date: 起始日期 (YYYY-MM-DD)
+                - end_date: 结束日期 (YYYY-MM-DD)
+
+        Returns:
+            过滤后的片段列表
+        """
+        # 如果没有过滤器，直接调用普通检索
+        if not filters:
+            vector_results = self._vector_search(query, top_k)
+            bm25_results = self._bm25_search(query, top_k)
+            return self._rrf_fusion(vector_results, bm25_results, top_k)
+
+        # 执行检索（获取更多结果用于过滤）
+        fetch_k = top_k * 3  # 获取更多结果以便过滤后仍有足够数量
+        vector_results = self._vector_search(query, fetch_k)
+        bm25_results = self._bm25_search(query, fetch_k)
+
+        # RRF 融合
+        fused_results = self._rrf_fusion(vector_results, bm25_results, fetch_k)
+
+        # 应用日期过滤
+        filtered_results = self._apply_date_filters(fused_results, filters)
+
+        # 返回 top_k 结果
+        return filtered_results[:top_k]
+
+    def _apply_date_filters(
+        self,
+        segments: list[Segment],
+        filters: dict[str, Any],
+    ) -> list[Segment]:
+        """应用日期过滤
+
+        Args:
+            segments: 片段列表
+            filters: 过滤条件
+
+        Returns:
+            过滤后的片段列表
+        """
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+
+        if not start_date and not end_date:
+            return segments
+
+        filtered = []
+        for segment in segments:
+            # 获取片段的时间戳
+            timestamp = segment.timestamp
+            if not timestamp:
+                # 如果没有时间戳，检查元数据中的日期
+                continue
+
+            # 检查日期范围
+            try:
+                seg_date = timestamp[:10]  # 取 YYYY-MM-DD 部分
+
+                if start_date and seg_date < start_date:
+                    continue
+                if end_date and seg_date > end_date:
+                    continue
+
+                filtered.append(segment)
+            except (TypeError, IndexError):
+                # 日期格式错误，跳过该片段
+                continue
+
+        return filtered
+
+    def _extract_date_from_path(self, path: str) -> str | None:
+        """从路径中提取日期
+
+        支持的日期格式：
+        - YYYY-MM-DD (如 2024-03-15)
+        - YYYY/MM/DD (如 2024/03/15)
+
+        Args:
+            path: 文件路径
+
+        Returns:
+            日期字符串 (YYYY-MM-DD 格式) 或 None
+        """
+        import re
+
+        # 匹配 YYYY-MM-DD 格式
+        date_pattern_dash = r"(\d{4}-\d{2}-\d{2})"
+        match = re.search(date_pattern_dash, path)
+        if match:
+            return match.group(1)
+
+        # 匹配 YYYY/MM/DD 格式并转换为 YYYY-MM-DD
+        date_pattern_slash = r"(\d{4})/(\d{2})/(\d{2})"
+        match = re.search(date_pattern_slash, path)
+        if match:
+            year, month, day = match.groups()
+            return f"{year}-{month}-{day}"
+
+        return None
+
     def _vector_search(self, query: str, top_k: int) -> list[Segment]:
         """执行向量检索
 
@@ -231,7 +345,6 @@ class MemoryIndexManager(IndexManager):
         Returns:
             融合后的片段列表
         """
-        import hashlib
         from collections import defaultdict
 
         rrf_scores: dict[str, float] = defaultdict(float)
