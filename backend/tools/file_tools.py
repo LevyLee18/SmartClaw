@@ -216,3 +216,119 @@ class UrlFetcher:
             ),
             "func": fetch_url,
         }
+
+
+class FileReader:
+    """文件读取器
+
+    安全读取文件内容。
+
+    Attributes:
+        config: SmartClaw 配置对象
+        security_checker: 安全检查器
+    """
+
+    def __init__(self, config: Settings, security_checker: SecurityChecker) -> None:
+        """初始化文件读取器
+
+        Args:
+            config: SmartClaw 配置对象
+            security_checker: 安全检查器
+        """
+        self.config = config
+        self.security_checker = security_checker
+
+    def read(self, file_path: str) -> str:
+        """读取文件内容
+
+        Args:
+            file_path: 要读取的文件路径
+
+        Returns:
+            文件内容或错误信息
+        """
+        import os
+
+        # 1. 路径安全检查
+        allowed, status = self.security_checker.check_path_safety(file_path)
+        if not allowed:
+            return f"Security Error: {status}"
+
+        # 2. 文件类型检查
+        allowed, status = self.security_checker.check_file_type(file_path)
+        if not allowed:
+            return f"Security Error: {status}"
+
+        # 3. 检查文件是否存在
+        if not os.path.exists(file_path):
+            return f"Error: File not found: {file_path}"
+
+        # 4. 检查是否为文件
+        if not os.path.isfile(file_path):
+            return f"Error: Not a file: {file_path}"
+
+        # 5. 检查文件大小
+        try:
+            file_size = os.path.getsize(file_path)
+            max_size = getattr(self.config.tools, 'max_file_size', 1048576)  # 默认 1MB
+            if file_size > max_size:
+                return f"Error: File too large ({file_size} bytes, max {max_size} bytes)"
+        except OSError as e:
+            return f"Error: Cannot get file size - {e}"
+
+        # 6. 读取文件内容
+        try:
+            # 尝试 UTF-8 编码
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return content
+        except UnicodeDecodeError:
+            # 尝试其他编码
+            try:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+                return content
+            except Exception as e:
+                return f"Error: Failed to read file - {e}"
+        except Exception as e:
+            return f"Error: Failed to read file - {e}"
+
+    def get_tool_adapter(self) -> dict[str, Any]:
+        """获取 LangChain 工具适配器
+
+        返回一个符合 LangChain 工具规范的字典，包含：
+        - name: 工具名称
+        - description: 工具描述
+        - func: 可调用的工具函数
+
+        Returns:
+            工具配置字典
+        """
+
+        def read_file(file_path: str) -> str:
+            """读取文件内容
+
+            安全读取指定路径的文件内容。
+
+            Args:
+                file_path: 要读取的文件路径
+
+            Returns:
+                文件内容或错误信息
+
+            安全限制：
+            - 路径安全检查（路径遍历攻击防护）
+            - 文件类型限制
+            - 文件大小限制
+            """
+            return self.read(file_path)
+
+        return {
+            "name": "read_file",
+            "description": (
+                "读取文件内容。"
+                "安全读取指定路径的文件内容。"
+                "支持文本文件、代码文件等。"
+            ),
+            "func": read_file,
+        }
