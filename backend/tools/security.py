@@ -191,6 +191,37 @@ class SecurityChecker:
 
         return True, "safe"
 
+    def check_url(self, url: str) -> tuple[bool, Literal["safe", "banned"]]:
+        """检查 URL 安全性
+
+        Args:
+            url: 要检查的 URL
+
+        Returns:
+            (是否可访问, 安全级别)
+            - safe: 安全，可访问
+            - banned: 直接禁止
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+
+            # 检查禁止域名
+            # 注意：这里需要从配置获取 banned_domains，但当前配置中没有
+            # 暂时使用空列表
+            banned_domains = getattr(self.config.security, 'banned_domains', [])
+
+            for banned in banned_domains:
+                if banned.lower() in domain:
+                    return False, "banned"
+
+            return True, "safe"
+
+        except Exception:
+            return False, "banned"
+
     def _is_dangerous_command(self, command: str) -> bool:
         """判断是否为危险命令
 
