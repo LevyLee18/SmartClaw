@@ -39,20 +39,17 @@ description: |
 
 ### 环境隔离铁律
 
-**重要**：任何开发任务开始前，必须确保已进入项目虚拟环境。
+**重要**：任何开发任务必须使用 `uv run` 在虚拟环境中执行命令。
 
 **执行规则**：
 1. **首次开发**：先完成任务 A13（创建 uv 虚拟环境并安装依赖）
-2. **后续开发**：在执行任何任务前，先激活虚拟环境
-   ```bash
-   source .venv/bin/activate  # Linux/macOS
-   # 或
-   .venv\Scripts\activate     # Windows
-   ```
-3. **测试运行**：使用 `pytest` 或 `uv run pytest` 确保在隔离环境中运行
-4. **代码检查**：使用 `ruff check` 和 `mypy` 确保在隔离环境中运行
+2. **测试运行**：使用 `uv run pytest` 确保在隔离环境中运行
+3. **代码检查**：使用 `uv run ruff check` 和 `uv run mypy` 确保在隔离环境中运行
+4. **其他命令**：使用 `uv run <command>` 在虚拟环境中执行
 
-**禁止**：在未激活虚拟环境的情况下执行开发、测试或代码检查任务。
+**禁止**：
+- 直接运行 `pytest`、`ruff`、`mypy` 等命令（可能使用系统 Python）
+- 依赖 `source .venv/bin/activate`（shell 环境不持久）
 
 ---
 
