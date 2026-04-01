@@ -6,7 +6,7 @@
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from backend.memory.base import MemoryManager
 
@@ -224,3 +224,58 @@ class CoreMemoryManager(MemoryManager):
             return False
 
         return any(self.core_memory_dir.glob("*.md"))
+
+    def get_write_tool(self) -> dict[str, Any]:
+        """获取 write_core_memory 工具适配器
+
+        返回一个符合 LangChain 工具规范的字典，包含：
+        - name: 工具名称
+        - description: 工具描述
+        - func: 可调用的工具函数
+
+        Returns:
+            工具配置字典
+        """
+        def write_core_memory(
+            file_key: str,
+            content: str,
+            mode: str = "append"
+        ) -> str:
+            """写入核心记忆
+
+            Args:
+                file_key: 文件标识（soul/identity/user/memory）
+                content: 要写入的内容（Markdown 格式）
+                mode: 写入模式（append/replace）
+
+            Returns:
+                操作结果消息
+            """
+            try:
+                # 验证 mode 参数
+                if mode not in ("append", "replace"):
+                    return f"错误：无效的 mode 参数 '{mode}'，必须是 'append' 或 'replace'"
+
+                # 写入核心记忆
+                self.write(content=content, file_key=file_key, mode=mode)
+
+                # 获取文件枚举以获取文件名
+                file_enum = self._get_file_enum(file_key)
+
+                return f"成功：已写入核心记忆文件 ({file_enum.value})"
+            except ValueError as e:
+                # 参数验证错误（如无效 file_key 或只读文件）
+                return f"错误：{e}"
+            except Exception as e:
+                # 其他错误
+                return f"错误：写入核心记忆失败 - {e}"
+
+        return {
+            "name": "write_core_memory",
+            "description": (
+                "写入核心记忆。用于将长期有效的重要信息写入核心记忆文件。"
+                "支持的文件：soul（人格）、identity（身份）、user（用户画像）、memory（记忆）。"
+                "支持 append（追加）和 replace（替换）两种模式。"
+            ),
+            "func": write_core_memory,
+        }
