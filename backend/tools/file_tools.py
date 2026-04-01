@@ -332,3 +332,118 @@ class FileReader:
             ),
             "func": read_file,
         }
+
+
+class FileWriter:
+    """文件写入器
+
+    安全写入文件内容。
+
+    Attributes:
+        config: SmartClaw 配置对象
+        security_checker: 安全检查器
+    """
+
+    def __init__(self, config: Settings, security_checker: SecurityChecker) -> None:
+        """初始化文件写入器
+
+        Args:
+            config: SmartClaw 配置对象
+            security_checker: 安全检查器
+        """
+        self.config = config
+        self.security_checker = security_checker
+
+    def write(self, file_path: str, content: str) -> str:
+        """写入文件内容
+
+        Args:
+            file_path: 要写入的文件路径
+            content: 要写入的内容
+
+        Returns:
+            操作结果或错误信息
+        """
+        import os
+
+        # 1. 路径安全检查
+        allowed, status = self.security_checker.check_path_safety(file_path)
+        if not allowed:
+            return f"Security Error: {status}"
+
+        # 2. 文件类型检查
+        allowed, status = self.security_checker.check_file_type(file_path)
+        if not allowed:
+            return f"Security Error: {status}"
+
+        # 3. 检查内容大小
+        content_size = len(content.encode('utf-8'))
+        max_size = getattr(self.config.tools, 'max_file_size', 1048576)  # 默认 1MB
+        if content_size > max_size:
+            return f"Error: Content too large ({content_size} bytes, max {max_size} bytes)"
+
+        # 4. 检查文件是否存在（覆盖控制）
+        file_exists = os.path.exists(file_path)
+        if file_exists:
+            allow_overwrite = getattr(self.config.tools, 'allow_overwrite', False)
+            if not allow_overwrite:
+                return f"Error: File already exists and overwrite is disabled: {file_path}"
+
+        # 5. 创建目录（如果不存在）
+        dir_path = os.path.dirname(file_path)
+        if dir_path and not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path, exist_ok=True)
+            except OSError as e:
+                return f"Error: Failed to create directory - {e}"
+
+        # 6. 写入文件
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return "Success: File written successfully"
+        except Exception as e:
+            return f"Error: Failed to write file - {e}"
+
+    def get_tool_adapter(self) -> dict[str, Any]:
+        """获取 LangChain 工具适配器
+
+        返回一个符合 LangChain 工具规范的字典，包含：
+        - name: 工具名称
+        - description: 工具描述
+        - func: 可调用的工具函数
+
+        Returns:
+            工具配置字典
+        """
+
+        def write_file(file_path: str, content: str) -> str:
+            """写入文件内容
+
+            安全写入指定路径的文件内容。
+
+            Args:
+                file_path: 要写入的文件路径
+                content: 要写入的内容
+
+            Returns:
+                操作结果或错误信息
+
+            安全限制：
+            - 路径安全检查（路径遍历攻击防护）
+            - 文件类型限制
+            - 文件大小限制
+            - 默认拒绝覆盖已存在文件
+            """
+            return self.write(file_path, content)
+
+        return {
+            "name": "write_file",
+            "description": (
+                "写入文件内容。"
+                "安全写入指定路径的文件内容。"
+                "支持文本文件、代码文件等。"
+                "默认不会覆盖已存在的文件。"
+            ),
+            "func": write_file,
+        }
