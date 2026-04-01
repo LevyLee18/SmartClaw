@@ -156,6 +156,41 @@ class SecurityChecker:
         # 不在允许列表中的扩展名
         return False, f"文件类型 {ext} 不在允许列表中"
 
+    def check_python_code(
+        self, code: str
+    ) -> tuple[bool, Literal["safe", "banned"]]:
+        """检查 Python 代码安全性
+
+        Args:
+            code: 要检查的 Python 代码
+
+        Returns:
+            (是否可执行, 安全级别)
+            - safe: 安全，可直接执行
+            - banned: 直接禁止
+        """
+        # 危险模块和函数列表
+        dangerous_patterns = [
+            "import subprocess",
+            "from subprocess",
+            "os.system",
+            "os.popen",
+            "eval(",
+            "exec(",
+            "__import__",
+            "compile(",
+            "open(",
+        ]
+
+        code_lower = code.lower()
+
+        # 检查危险模式
+        for pattern in dangerous_patterns:
+            if pattern.lower() in code_lower:
+                return False, "banned"
+
+        return True, "safe"
+
     def _is_dangerous_command(self, command: str) -> bool:
         """判断是否为危险命令
 
