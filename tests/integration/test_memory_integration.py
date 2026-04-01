@@ -414,3 +414,301 @@ class TestMemorySystemPromptBuilder:
         assert "Day 2 content" not in content
         assert "Day 3 content" not in content
         assert "Day 4 content" not in content
+
+
+class TestMemoryToolAdapters:
+    """测试记忆工具适配器集成
+
+    验证 CoreMemory + NearMemory + 工具适配器协同工作
+    """
+
+    def test_write_near_memory_tool_integration(self, temp_dir: Path) -> None:
+        """测试 write_near_memory 工具适配器集成
+
+        场景：
+        1. 获取 NearMemoryManager 的工具
+        2. 通过工具写入记忆
+        3. 验证文件内容正确
+        """
+        from backend.memory.near import NearMemoryManager
+
+        near_manager = NearMemoryManager(base_path=temp_dir)
+        tool = near_manager.get_write_tool()
+
+        # 通过工具写入
+        result = tool["func"](
+            content="User prefers dark mode",
+            category="用户偏好"
+        )
+
+        # 验证返回值
+        assert "成功" in result
+
+        # 验证文件内容
+        near_file = near_manager.memory_dir / f"{date.today().isoformat()}.md"
+        content = near_file.read_text()
+        assert "用户偏好" in content
+        assert "User prefers dark mode" in content
+
+    def test_write_core_memory_tool_integration(self, temp_dir: Path) -> None:
+        """测试 write_core_memory 工具适配器集成
+
+        场景：
+        1. 获取 CoreMemoryManager 的工具
+        2. 通过工具写入记忆
+        3. 验证文件内容正确
+        """
+        from backend.memory.core import CoreMemoryManager
+
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        tool = core_manager.get_write_tool()
+
+        # 通过工具写入
+        result = tool["func"](
+            file_key="memory",
+            content="User decided to use Python for this project"
+        )
+
+        # 验证返回值
+        assert "成功" in result
+
+        # 验证文件内容
+        memory_file = core_manager.core_memory_dir / "MEMORY.md"
+        content = memory_file.read_text()
+        assert "Python" in content
+        assert "project" in content
+
+    def test_both_tools_work_together(self, temp_dir: Path) -> None:
+        """测试两个工具适配器协同工作
+
+        场景：
+        1. 同时使用近端和核心记忆工具
+        2. 验证两者独立工作
+        3. 验证数据写入正确位置
+        """
+        from backend.memory.core import CoreMemoryManager
+        from backend.memory.near import NearMemoryManager
+
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        near_manager = NearMemoryManager(base_path=temp_dir)
+
+        core_tool = core_manager.get_write_tool()
+        near_tool = near_manager.get_write_tool()
+
+        # 同时写入
+        core_result = core_tool["func"](
+            file_key="user",
+            content="User is a software engineer"
+        )
+
+        near_result = near_tool["func"](
+            content="Discussed API design patterns",
+            category="对话摘要"
+        )
+
+        # 验证都成功
+        assert "成功" in core_result
+        assert "成功" in near_result
+
+        # 验证数据在正确位置
+        user_file = core_manager.core_memory_dir / "USER.md"
+        assert "software engineer" in user_file.read_text()
+
+        near_file = near_manager.memory_dir / f"{date.today().isoformat()}.md"
+        near_content = near_file.read_text()
+        assert "API design" in near_content
+        assert "对话摘要" in near_content
+
+    def test_tool_error_propagation(self, temp_dir: Path) -> None:
+        """测试工具错误传播
+
+        场景：
+        1. 使用无效参数调用工具
+        2. 验证错误信息正确返回
+        3. 验证不会抛出异常
+        """
+        from backend.memory.core import CoreMemoryManager
+        from backend.memory.near import NearMemoryManager
+
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        near_manager = NearMemoryManager(base_path=temp_dir)
+
+        core_tool = core_manager.get_write_tool()
+        near_tool = near_manager.get_write_tool()
+
+        # 测试核心记忆工具的错误处理
+        readonly_result = core_tool["func"](
+            file_key="agents",
+            content="Should fail"
+        )
+        assert "错误" in readonly_result or "readonly" in readonly_result.lower()
+
+        # 测试近端记忆工具的错误处理
+        invalid_date_result = near_tool["func"](
+            content="Test",
+            date="not-a-date"
+        )
+        assert "错误" in invalid_date_result
+
+    def test_tool_multiple_calls_consistency(self, temp_dir: Path) -> None:
+        """测试多次调用工具的一致性
+
+        场景：
+        1. 多次调用 get_write_tool()
+        2. 验证每次返回独立的工具实例
+        3. 验证所有工具都能正常工作
+        """
+        from backend.memory.core import CoreMemoryManager
+        from backend.memory.near import NearMemoryManager
+
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        near_manager = NearMemoryManager(base_path=temp_dir)
+
+        # 获取多个工具实例
+        core_tools = [core_manager.get_write_tool() for _ in range(3)]
+        near_tools = [near_manager.get_write_tool() for _ in range(3)]
+
+        # 验证是独立的实例
+        for i in range(3):
+            for j in range(i + 1, 3):
+                assert core_tools[i] is not core_tools[j]
+                assert near_tools[i] is not near_tools[j]
+
+        # 验证所有工具都能正常工作
+        for tool in core_tools:
+            result = tool["func"](
+                file_key="memory",
+                content=f"Test entry {tool}"
+            )
+            assert "成功" in result
+
+        for tool in near_tools:
+            result = tool["func"](
+                content=f"Test entry {tool}"
+            )
+            assert "成功" in result
+
+        # 验证所有内容都被写入
+        core_file = core_manager.core_memory_dir / "MEMORY.md"
+        core_content = core_file.read_text()
+        assert core_content.count("Test entry") == 3
+
+        near_file = near_manager.memory_dir / f"{date.today().isoformat()}.md"
+        near_content = near_file.read_text()
+        assert near_content.count("Test entry") == 3
+
+    def test_tool_with_session_context(self, temp_dir: Path) -> None:
+        """测试工具在会话上下文中工作
+
+        场景：
+        1. 创建会话
+        2. 在会话中使用工具写入记忆
+        3. 验证会话和记忆都能正常工作
+        """
+        from backend.memory.core import CoreMemoryManager
+        from backend.memory.near import NearMemoryManager
+        from backend.memory.session import SessionManager
+
+        session_manager = SessionManager(base_path=temp_dir)
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        near_manager = NearMemoryManager(base_path=temp_dir)
+
+        # 创建会话
+        session = session_manager.create_session("test-session")
+
+        # 在会话上下文中使用工具
+        core_tool = core_manager.get_write_tool()
+        near_tool = near_manager.get_write_tool()
+
+        # 写入会话相关的记忆
+        near_result = near_tool["func"](
+            content=f"Session {session.session_id} discussion about Python"
+        )
+
+        core_result = core_tool["func"](
+            file_key="user",
+            content="User mentioned they are a Python developer"
+        )
+
+        # 验证都成功
+        assert "成功" in near_result
+        assert "成功" in core_result
+
+        # 验证会话仍然活跃
+        retrieved_session = session_manager.get_session("test-session")
+        assert retrieved_session is not None
+        assert retrieved_session.status == "active"
+
+        # 验证记忆内容
+        near_content = near_manager.load(days=1)
+        assert session.session_id in near_content
+
+    def test_complete_memory_workflow_with_tools(self, temp_dir: Path) -> None:
+        """测试完整的记忆工作流程（使用工具）
+
+        场景：
+        1. 创建所有管理器
+        2. 获取工具
+        3. 模拟完整对话流程
+        4. 验证所有记忆正确保存
+        """
+        from backend.memory.core import CoreMemoryManager
+        from backend.memory.near import NearMemoryManager
+        from backend.memory.session import SessionManager
+
+        # 1. 创建所有管理器
+        session_manager = SessionManager(base_path=temp_dir)
+        core_manager = CoreMemoryManager(base_path=temp_dir)
+        near_manager = NearMemoryManager(base_path=temp_dir)
+
+        # 2. 获取工具
+        core_tool = core_manager.get_write_tool()
+        near_tool = near_manager.get_write_tool()
+
+        # 3. 模拟完整对话流程
+
+        # 3.1 创建会话
+        session = session_manager.create_session("user-123")
+
+        # 3.2 用户提到重要偏好（写入核心记忆）
+        core_tool["func"](
+            file_key="user",
+            content="User prefers vim over emacs for editing"
+        )
+
+        # 3.3 记录对话摘要（写入近端记忆）
+        near_tool["func"](
+            content="User explained their editor preference",
+            category="对话摘要"
+        )
+
+        # 3.4 用户做出决策（写入核心记忆）
+        core_tool["func"](
+            file_key="memory",
+            content="Decision: Use vim for all future code editing tasks"
+        )
+
+        # 3.5 记录决策到近端记忆
+        near_tool["func"](
+            content="User decided to use vim for editing",
+            category="决策记录"
+        )
+
+        # 4. 验证所有记忆正确保存
+
+        # 验证核心记忆
+        user_content = core_manager.load(file_key="user")
+        assert "vim" in user_content
+        assert "emacs" in user_content
+
+        memory_content = core_manager.load(file_key="memory")
+        assert "Decision" in memory_content
+
+        # 验证近端记忆
+        near_content = near_manager.load(days=1)
+        assert "editor preference" in near_content
+        assert "决策记录" in near_content
+
+        # 验证会话
+        assert session.session_key == "user-123"
+        assert session.status == "active"

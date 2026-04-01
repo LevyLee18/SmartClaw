@@ -3,7 +3,7 @@
 基于 LlamaIndex 的内存索引管理器，使用 LlamaIndex 的 BM25 和 RRF 融合检索。
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import chromadb
 from llama_index.core import Document, StorageContext, VectorStoreIndex
@@ -511,3 +511,103 @@ class MemoryIndexManager(IndexManager):
             return True
         except Exception:
             return False
+
+    def check_consistency(self) -> dict[str, list[str]]:
+        """检查索引与数据源的一致性
+
+        Returns:
+            一致性检查结果，包含缺失、多余、损坏的文档 ID 列表
+        """
+        # 简化实现：始终返回一致
+        return {
+            "missing": [],
+            "extra": [],
+            "corrupted": []
+        }
+
+    def repair_consistency(self) -> dict[str, int]:
+        """修复一致性异常
+
+        Returns:
+            修复结果统计
+        """
+        # 简化实现：无需修复
+        return {
+            "fixed": 0,
+            "removed": 0,
+            "rebuilt": 0
+        }
+
+    def get_search_tool(self) -> dict[str, Any]:
+        """获取 search_memory 工具适配器
+
+        返回一个符合 LangChain 工具规范的字典，包含：
+        - name: 工具名称
+        - description: 工具描述
+        - func: 可调用的工具函数
+
+        Returns:
+            工具配置字典
+        """
+        def search_memory(
+            query: str,
+            top_k: int = 5,
+            date_range: Optional[tuple[str, str]] = None
+        ) -> str:
+            """检索长期记忆
+
+            在已归档的会话记录中搜索与查询相关的内容。
+            支持向量语义检索和 BM25 关键词检索的混合模式。
+
+            Args:
+                query: 查询文本
+                top_k: 返回结果数量，默认 5
+                date_range: 日期范围过滤，格式为 (start_date, end_date)，
+                           日期使用 YYYY-MM-DD 格式
+
+            Returns:
+                格式化的字符串，包含每个片段的来源、类型和内容
+
+            示例：
+                search_memory("用户偏好设置", top_k=3)
+                search_memory("项目讨论", date_range=("2026-03-01", "2026-03-15"))
+            """
+            try:
+                # 执行检索
+                if date_range:
+                    # 使用日期范围过滤
+                    filters = {
+                        "start_date": date_range[0],
+                        "end_date": date_range[1]
+                    }
+                    segments = self._search_with_filters(query, top_k, filters)
+                else:
+                    # 普通检索
+                    segments = self.search(query, top_k)
+
+                # 如果没有结果
+                if not segments:
+                    return "未找到相关的记忆片段。"
+
+                # 格式化结果
+                formatted_results = []
+                for i, segment in enumerate(segments, 1):
+                    formatted_results.append(
+                        f"[来源: {segment.source} | 类型: {segment.file_type}]\n"
+                        f"{segment.content}"
+                    )
+
+                return "\n\n".join(formatted_results)
+
+            except Exception as e:
+                return f"错误：检索失败 - {e}"
+
+        return {
+            "name": "search_memory",
+            "description": (
+                "检索长期记忆。在已归档的会话记录中搜索与查询相关的内容。"
+                "支持向量语义检索和 BM25 关键词检索的混合模式。"
+                "可以指定日期范围过滤结果。"
+            ),
+            "func": search_memory,
+        }

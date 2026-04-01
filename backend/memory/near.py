@@ -3,9 +3,10 @@
 管理当天的对话摘要和临时性信息，按日期存储在 Markdown 文件中。
 """
 
-from datetime import date, timedelta
+from datetime import date as DateClass
+from datetime import timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from backend.memory.base import MemoryManager
 
@@ -43,7 +44,7 @@ class NearMemoryManager(MemoryManager):
             return ""
 
         contents: list[str] = []
-        today = date.today()
+        today = DateClass.today()
 
         for i in range(days):
             target_date = today - timedelta(days=i)
@@ -59,7 +60,7 @@ class NearMemoryManager(MemoryManager):
     def write(  # type: ignore[override]
         self,
         content: str,
-        target_date: Optional[date] = None,
+        target_date: Optional[DateClass] = None,
         **kwargs,  # type: ignore[no-untyped-def]
     ) -> None:
         """写入近端记忆
@@ -70,7 +71,7 @@ class NearMemoryManager(MemoryManager):
             **kwargs: 额外参数（保留兼容性）
         """
         if target_date is None:
-            target_date = date.today()
+            target_date = DateClass.today()
 
         # 确保目录存在
         self.memory_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +87,7 @@ class NearMemoryManager(MemoryManager):
 
         file_path.write_text(new_content, encoding="utf-8")
 
-    def get_file_path(self, target_date: date) -> Path:
+    def get_file_path(self, target_date: DateClass) -> Path:
         """获取指定日期的文件路径
 
         Args:
@@ -107,3 +108,69 @@ class NearMemoryManager(MemoryManager):
             return False
 
         return any(self.memory_dir.glob("*.md"))
+
+    def get_write_tool(self) -> dict[str, Any]:
+        """获取 write_near_memory 工具适配器
+
+        返回一个符合 LangChain 工具规范的字典，包含：
+        - name: 工具名称
+        - description: 工具描述
+        - func: 可调用的工具函数
+
+        Returns:
+            工具配置字典
+        """
+        def write_near_memory(
+            content: str,
+            date: Optional[str] = None,
+            category: Optional[str] = None
+        ) -> str:
+            """写入近端记忆
+
+            Args:
+                content: 要写入的内容（Markdown 格式）
+                date: 日期（YYYY-MM-DD 格式），默认为当天
+                category: 内容类别（对话摘要/重要事实/决策记录）
+
+            Returns:
+                操作结果消息
+            """
+            try:
+                # 解析日期
+                target_date: DateClass
+                if date:
+                    try:
+                        target_date = DateClass.fromisoformat(date)
+                    except ValueError:
+                        return f"错误：日期格式无效，应为 YYYY-MM-DD 格式，收到：{date}"
+                else:
+                    target_date = self._get_today()
+
+                # 构建内容
+                full_content = content
+                if category:
+                    full_content = f"## {category}\n\n{content}"
+
+                # 写入记忆
+                self.write(content=full_content, target_date=target_date)
+
+                return f"成功：已写入近端记忆 ({target_date.isoformat()})"
+            except Exception as e:
+                return f"错误：写入近端记忆失败 - {e}"
+
+        return {
+            "name": "write_near_memory",
+            "description": (
+                "写入近端记忆。用于将重要信息写入当天的近端记忆文件。"
+                "支持内容类别（对话摘要、重要事实、决策记录）。"
+            ),
+            "func": write_near_memory,
+        }
+
+    def _get_today(self) -> DateClass:
+        """获取今天的日期
+
+        Returns:
+            今天的日期对象
+        """
+        return DateClass.today()
