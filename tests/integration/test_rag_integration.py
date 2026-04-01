@@ -434,7 +434,7 @@ class TestRAGDirectoryStructure:
         from backend.rag.cache import SQLiteCache
 
         # 创建 Cache 会创建数据库文件
-        cache = SQLiteCache(str(tmp_path / "cache.db"))
+        _cache = SQLiteCache(str(tmp_path / "cache.db"))
 
         # 验证文件创建
         assert (tmp_path / "cache.db").exists()
@@ -447,6 +447,204 @@ class TestRAGDirectoryStructure:
 
         # 验证路径对象创建正确
         assert str(expected_chroma_path).endswith("chroma")
+
+
+class TestRAGToolAdapters:
+    """RAG 工具适配器集成测试
+
+    测试 get_search_tool() 返回的 search_memory 工具。
+    """
+
+    def test_search_tool_returns_dict(self, tmp_path: Path) -> None:
+        """测试 search_tool 返回字典格式"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        # Patch __init__ 跳过真实初始化
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            tool = manager.get_search_tool()
+
+            assert isinstance(tool, dict)
+            assert "name" in tool
+            assert "description" in tool
+            assert "func" in tool
+
+    def test_search_tool_name_and_description(self, tmp_path: Path) -> None:
+        """测试工具名称和描述正确"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            tool = manager.get_search_tool()
+
+            assert tool["name"] == "search_memory"
+            assert "长期记忆" in tool["description"]
+            assert "向量语义检索" in tool["description"]
+            assert "BM25" in tool["description"]
+
+    def test_search_tool_with_results(self, tmp_path: Path) -> None:
+        """测试工具返回检索结果"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+        from backend.rag.models import Segment
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            # Mock search 方法
+            mock_segments = [
+                Segment(
+                    content="Test content 1",
+                    source="test1.md",
+                    file_type="long_term",
+                    timestamp="2026-04-01",
+                    score=0.9,
+                ),
+                Segment(
+                    content="Test content 2",
+                    source="test2.md",
+                    file_type="long_term",
+                    timestamp="2026-04-01",
+                    score=0.8,
+                ),
+            ]
+
+            with patch.object(manager, "search", return_value=mock_segments):
+                tool = manager.get_search_tool()
+                result = tool["func"](query="test query", top_k=5)
+
+                # 验证返回值
+                assert isinstance(result, str)
+                assert "test1.md" in result or "Test content 1" in result
+
+    def test_search_tool_with_empty_results(self, tmp_path: Path) -> None:
+        """测试工具处理空结果"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            # Mock search 返回空列表
+            with patch.object(manager, "search", return_value=[]):
+                tool = manager.get_search_tool()
+                result = tool["func"](query="test query")
+
+                # 验证返回未找到信息
+                assert isinstance(result, str)
+                assert "未找到" in result
+
+    def test_search_tool_with_date_range(self, tmp_path: Path) -> None:
+        """测试工具支持日期范围过滤"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            # Mock _search_with_filters 方法
+            with patch.object(manager, "_search_with_filters", return_value=[]):
+                tool = manager.get_search_tool()
+                result = tool["func"](
+                    query="test query",
+                    date_range=("2026-03-01", "2026-03-31"),
+                )
+
+                # 验证返回值
+                assert isinstance(result, str)
+
+    def test_search_tool_with_custom_top_k(self, tmp_path: Path) -> None:
+        """测试工具支持自定义 top_k"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            # Mock search 方法
+            with patch.object(manager, "search", return_value=[]) as mock_search:
+                tool = manager.get_search_tool()
+                tool["func"](query="test query", top_k=10)
+
+                # 验证 search 被调用，且 top_k 参数传递正确
+                mock_search.assert_called_once_with("test query", 10)
+
+    def test_search_tool_handles_errors(self, tmp_path: Path) -> None:
+        """测试工具处理异常情况"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            # Mock search 抛出异常
+            with patch.object(manager, "search", side_effect=Exception("Test error")):
+                tool = manager.get_search_tool()
+                result = tool["func"](query="test query")
+
+                # 验证返回错误信息
+                assert isinstance(result, str)
+                assert "错误" in result
+
+    def test_search_tool_multiple_instances(self, tmp_path: Path) -> None:
+        """测试多次调用 get_search_tool() 返回独立实例"""
+        from backend.rag.memory_index_manager import MemoryIndexManager
+
+        config = create_mock_settings(tmp_path)
+
+        with patch.object(
+            MemoryIndexManager, "__init__", lambda self, cfg: None
+        ):
+            manager = MemoryIndexManager(config)
+            manager.config = config
+            manager.rag_config = config.rag
+
+            tool1 = manager.get_search_tool()
+            tool2 = manager.get_search_tool()
+
+            # 验证是独立的实例
+            assert tool1 is not tool2
+            assert tool1["func"] is not tool2["func"]
+            assert tool1["name"] == tool2["name"]
 
 
 class TestRAGConfigIntegration:
